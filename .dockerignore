@@ -1,0 +1,13 @@
+app/__pycache__/*
+app/utils/__pycache__/*
+app/pipeline/__pycache__/*
+*.pyc
+
+.venv/*
+.git
+.gitignore
+.vscode
+*.ipynb
+
+README.md
+LICENSE

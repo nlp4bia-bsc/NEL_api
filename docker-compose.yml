@@ -1,0 +1,20 @@
+services:
+  ner-linking-api:
+    container_name: ner-linking-api
+    build: .
+    user: root
+    environment:
+      DICTIONARY_FILE:
+      LANGUAGE: es
+    ports:
+      - "5000:5000"
+    volumes:
+      - .:/app
+    restart: unless-stopped
+    privileged: true
+    command: flask run --host=0.0.0.0 --port=5000
+
+networks:
+  default:
+    name: cogstack-net
+    external: true
