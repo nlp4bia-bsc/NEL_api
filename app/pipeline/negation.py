@@ -8,7 +8,7 @@ and enriches NER entities with is_negated and is_uncertain attributes.
 Author: Jan Rodríguez Miret
 """
 
-def add_negation_uncertainty_attributes(nerl_results: list[list[list[dict]]], negation_entities_list: list[list[dict]]):
+def add_negation_uncertainty_attributes(nerl_results: list[list[dict]], negation_entities_list: list[list[dict]]) -> list[list[dict]]:
     """
     Add is_negated and is_uncertain attributes to NER entities based on overlap with negation/uncertainty scope entities.
     Also includes negation/uncertainty scores from the matching scopes.
@@ -26,7 +26,7 @@ def add_negation_uncertainty_attributes(nerl_results: list[list[list[dict]]], ne
     # Run negation tagger inference to get negation/uncertainty entities
     results_with_attributes = []
     
-    for ner_entities_doc, negation_entities_doc in zip(nerl_results, negation_entities_list):
+    for nerL_entities_doc, negation_entities_doc in zip(nerl_results, negation_entities_list):
         
         # Separate negation/uncertainty scopes and triggers
         neg_scopes = [e for e in negation_entities_doc if e['ner_class'] == 'NSCO']
@@ -34,7 +34,7 @@ def add_negation_uncertainty_attributes(nerl_results: list[list[list[dict]]], ne
         
         # Filter NER entities: exclude NEG, NSCO, UNC, USCO entities
         filtered_ner_entities = [
-            e for e in ner_entities_doc 
+            e for e in nerL_entities_doc 
             if e['ner_class'] not in ['NEG', 'NSCO', 'UNC', 'USCO'] # though idk why this would be called if the neg ner is only called above
         ]
         
@@ -44,21 +44,21 @@ def add_negation_uncertainty_attributes(nerl_results: list[list[list[dict]]], ne
             is_uncertain, uncertainty_score = _find_property(entity, unc_scopes)
             
             entity['is_negated'] = is_negated
-            entity['is_uncertain'] = is_uncertain
             entity['negation_score'] = negation_score
+            entity['is_uncertain'] = is_uncertain
             entity['uncertainty_score'] = uncertainty_score
         
         results_with_attributes.append(filtered_ner_entities)
     
     return results_with_attributes
 
-def _find_property(entity, prop_scopes):
+def _find_property(entity: dict, prop_scopes: list[dict]) -> tuple[int, float | None]:
     # Find overlapping negation scopes and get their scores
     overlapping_scopes = [scope for scope in prop_scopes if _entity_in_scope(entity, scope)] # for some reason, there can be more than one negation per entity
     # Use the highest score if multiple scopes overlap
     return len(overlapping_scopes), max([scope['ner_score'] for scope in overlapping_scopes]) if overlapping_scopes else None
 
-def _entity_in_scope(entity, scope_ent):
+def _entity_in_scope(entity: dict, scope_ent: dict) -> bool:
     """
     Check if two entities overlap based on their start and end positions.
     Returns True if entity1 is within or overlaps with entity2's scope.

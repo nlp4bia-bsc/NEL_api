@@ -1,18 +1,15 @@
 import sys, os
 import pandas as pd
 import torch
-import copy
-
-from utils.model_utils import DenseRetriever
 from sentence_transformers import SentenceTransformer
-from utils.results_postprocessing import join_all_entities
+
+from app.utils.model_utils import DenseRetriever
 
 class NelModel:
     def __init__(self, gaz_pth: str, model_pth: str, vector_db_pth: str, device: str | None = None):
-        if device:
-            self.device = torch.device(device)
-        else:
-            self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+        if device is None:
+            device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        self.device = torch.device(device)
 
         self.st_model = SentenceTransformer(model_pth).to(self.device)
         self.gazeteer = pd.read_csv(gaz_pth, sep='\t')
@@ -26,7 +23,6 @@ class NelModel:
     def _load_vector_db(self, vector_db_path: str):
         if os.path.exists(vector_db_path):
             print("Loading vector database from file...")
-            print(self.device)
             self.vector_db = torch.load(vector_db_path, map_location=self.device)
         else:
             print("Vector database not found. Computing vector database...")
@@ -64,7 +60,7 @@ class NelModel:
         return candidates_df.set_index('mention')
 
 
-def nel_inference(ner_results: list[list[list[dict]]], model_paths: list[tuple[str, str, str]], combined: bool=True, device: str | None = None):
+def nel_inference(ner_results: list[list[list[dict]]], model_paths: list[tuple[str, str, str]], device: str | None = None) -> list[list[list[dict]]]:
     """
     ner_results = [//result level
         [// entity type level
@@ -81,7 +77,7 @@ def nel_inference(ner_results: list[list[list[dict]]], model_paths: list[tuple[s
         "(<gazetteer_path>, <model_path>, <vector_db_path> | None)"
     ]
 
-    combined is a bool, fool
+    returns the same ner_results list of list of list of dict with extra keys for the normalized codes and the simmilarity to the original concept
     """
 
     assert len(ner_results) == len(model_paths)
@@ -106,37 +102,4 @@ def nel_inference(ner_results: list[list[list[dict]]], model_paths: list[tuple[s
             for mention_dict in mention_doc:
                 mention_dict["code"], mention_dict["term"], mention_dict["nel_score"] = output.loc[mention_dict["span"]]
                 
-    if combined:
-        nerl_results = join_all_entities(nerl_results)
-
     return nerl_results
-
-
-
-import sys
-
-def main():
-    """
-    this is just for testing purposes.
-    """
-    texts = [
-        "este es un texto de ejemplo.\ncon un paciente procedente de almería aunque nacido en guadalupe, méxico, con mucha tos, mocos, fiebre y la varicela con meningitis.",
-        "otro texto con covid y paracetamol para probar.\ncon más  muchos más síntomas interesantes como edemas."
-    ]
-
-    path_list = [
-        "(<gazetteer_path>, <model_path>, <vector_db_path> | None)"
-    ]
-    # model_dir = "/home/bscuser/.cache/huggingface/hub/"
-
-    # ner_model_paths = [
-    #     "models--BSC-NLP4BIA--bsc-bio-ehr-es-carmen-distemist/snapshots/cd1cbf5dbc13432823f7c1915ef39a350fdd1aa1",
-    #     "models--BSC-NLP4BIA--bsc-bio-ehr-es-carmen-symptemist/snapshots/a8108ef4d2ee4e4da8ea9f0d8a2fe8d2d2bca367"]
-
-    ner_results = ner_inference(texts, [model_dir + m_th for m_th in ner_model_paths], agg_strat="first", device="cpu", combined=False)
-    nel_results = nel_inference(ner_results, combined_True)
-    print(nel_results)
-
-
-if __name__ == "__main__":
-    sys.exit(main())

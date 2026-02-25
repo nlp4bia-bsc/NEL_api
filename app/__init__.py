@@ -1,5 +1,6 @@
 from flask import Flask, request, jsonify
-from pipeline.orchestrator import run_nerl_pipeline
+from app.pipeline.orchestrator import NERL_Orchestrator
+from app.config import OBLIG_PROPERTIES
 
 app = Flask(__name__)
 
@@ -7,39 +8,58 @@ app = Flask(__name__)
 def health():
     return "OK", 200
 
-@app.route('/nerl_process_bulk', methods=['POST'])
-def nerl_process_bulk():
+@app.route('/process_bulk', methods=['POST'])
+def process_bulk():
     """
-    Process multiple texts using the NER models and normalizing to the provided gazetteers.
+    Process multiple texts using NER Dictionary Lookup
     ---
     parameters:
-      - content: list
-        - text: str
-      - nerl_models_config: list (optional)
-        - ner_model_path: str
-        - gazetteer_path: str
+      - name: body
+        in: body
+        required: true
+        schema:
+          id: bulk_input
+          type: array
+          items:
+            type: object
+            required:
+              - text
+            properties:
+              text:
+                type: string
+                description: The text to process
     responses:
       200:
-        description: Processed texts with NER annotations normalized.
+        description: Processed texts with NER annotations
     """
-    body = request.json
+    data = request.json
 
-    if not isinstance(body, dict) or not "content" in body.keys():
+    if not isinstance(data, dict):
         return jsonify({"error": "Input must be a dictionary with 'content' key"}), 400
 
-    content = body["content"]
+    if not "content" in data.keys():
+        return jsonify({"error": "Input must be a dictionary with 'content' key"}), 400
 
-    if not isinstance(content, list):
+    data = data["content"]
+
+    if not isinstance(data, list):
         return jsonify({"error": "Input must be a list of objects"}), 400
-    
-    texts = []
-    for item in content:
-            text = item.get('text')
-            if not text:
-                return jsonify({"error": "Each item must contain 'text'"}), 400
-            texts.append(text)
 
-    results = run_nerl_pipeline(texts, agg_strat='first', device='cpu')
+    texts = []
+    footers = []
+    for item in data:
+        text = item.get('text')
+        footer = item.get('footer')
+        if not text:
+            return jsonify({"error": "Each item must contain 'text'"}), 400
+        if any([obligatory_prop not in footer for obligatory_prop in OBLIG_PROPERTIES]):
+            return jsonify({"error": "The input has a missing obligatory property: " + ", ".join(OBLIG_PROPERTIES)}), 400
+
+        texts.append(text)
+        footers.append(footer)
+    
+    orch = NERL_Orchestrator(agg_strat='first', device='cpu')
+    results = orch.predict(texts=texts, footers=footers)
     return jsonify(results)
 
 if __name__ == '__main__':
