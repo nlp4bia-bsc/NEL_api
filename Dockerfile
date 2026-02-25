@@ -1,7 +1,6 @@
 FROM python:3.10-slim
 
 WORKDIR /app
-
 # Install uv
 RUN pip install uv
 # Copy dependency metadata first (better layer caching)

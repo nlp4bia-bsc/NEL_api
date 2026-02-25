@@ -4,7 +4,7 @@ services:
     build: .
     user: root
     environment:
-      DICTIONARY_FILE:
+      CUDA_VISIBLE_DEVICES: ""
       LANGUAGE: es
     ports:
       - "5000:5000"
