@@ -5,7 +5,7 @@ import json
 from app.src.pipelines import SotaPipeline, LookupPipeline
 
 method2pipeline = {
-    'sota': SotaPipeline,
+    'sota': lambda: SotaPipeline(agg_strat="last"),
     'lookup': LookupPipeline
 }
 

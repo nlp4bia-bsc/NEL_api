@@ -99,11 +99,11 @@ class SotaPipeline(AnnotationPipeline):
         return final_results
 
 
-class LookupPipeline:
+class LookupPipeline(AnnotationPipeline):
     """Direct text → code lookup. No NER step needed."""
     def __init__(self):
         self.lookup = pd.read_csv(LOOKUP_PATH)
 
-    def predict(self, texts):
+    def predict(self, texts: list[str]) -> list[list[dict]]:
         # Apply lookup directly to raw text, no NER upstream
         pass
