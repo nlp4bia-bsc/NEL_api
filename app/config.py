@@ -31,3 +31,5 @@ NEL_PATHS = [
         "app/test_resources/gazetteers/vectorized_gazetteer_distemist.pt" # if this file doesn't exist, it will be created at runtime
     )
 ]
+
+LOOKUP_PATH = "<path of the lookup table>"

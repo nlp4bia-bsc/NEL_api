@@ -97,6 +97,66 @@ class ModelAnnotation(ABC):
     def predict(self, texts: list[str], footers: list[dict]) -> list[dict]:
         pass
 
+    def rename_ann2cdm(self, ann: dict):
+        """Converts annoatations' fields into the CDM V2 variables.
+        The current output is the following:
+            {
+                "start": int,
+                "end": int,
+                "ner_score": float,
+                "span": str,
+                "ner_class": str,
+                "code": str,
+                "term": str,
+                "nel_score": float,
+                "is_negated": bool,
+                "negation_score": float,
+                "is_uncertain": bool,
+                "uncertainty_score": float
+            }
+
+        And the intended one has the following structure:
+            {
+                "concept_class": "symptom | disorder/disease | procedure | medication | cardiology entity | other", (ner_class, convert "ENFERMEDAD": "disorder/disease", "SINTOMA": "symptom")
+                "start_offset": int, (start)
+                "end_offset": int, (end)
+                "concept_mention_string": "str", (span)
+                "extraction_confidence": float, (ner_score)
+                "concept_str": str, (term)
+                "concept_code": str, (code)
+                "concept_confidence": float, (nel_score)
+                "negation": "str", (convert is_negated to yes | no)
+                "negation_confidence": float, (negation_score)
+                "uncertainty": "str", (convert is_uncertain to yes | no)
+                "uncertainty_confidence": float (uncertainty_score)
+            }
+        """
+        ner_class_map = {
+            "ENFERMEDAD": "disorder/disease",
+            "SINTOMA": "symptom",
+        }
+
+        try:
+            concept_class = ner_class_map.get(ann["ner_class"], ann["ner_class"].lower())
+
+            return {
+                "concept_class": concept_class,
+                "start_offset": ann["start"],
+                "end_offset": ann["end"],
+                "mention_string": ann["span"],
+                "extraction_confidence": ann["ner_score"],
+                "concept_str": ann["term"],
+                "concept_code": ann["code"],
+                "concept_confidence": ann["nel_score"],
+                "negation": "yes" if ann["is_negated"] else "no",
+                "negation_confidence": ann["negation_score"],
+                "uncertainty": "yes" if ann["is_uncertain"] else "no",
+                "uncertainty_confidence": ann["uncertainty_score"],
+            }
+
+        except KeyError as e:
+            raise ValueError(f"Missing expected annotation field: {e}")
+
     def serialize(self, text: str, annotations: list[dict], footer: dict) -> dict:
         validated_annotations = [Annotation(**a) for a in annotations]
 

@@ -2,8 +2,12 @@ import os
 os.environ["CUDA_VISIBLE_DEVICES"] = ""
 import sys
 import json
+from app.src.pipelines import SotaPipeline, LookupPipeline
 
-from app.pipeline.orchestrator import NERL_Orchestrator
+method2pipeline = {
+    'sota': SotaPipeline,
+    'lookup': LookupPipeline
+}
 
 def main():
     """
@@ -24,9 +28,11 @@ def main():
         "Otro texto con covid y paracetamol para probar.\ncon más  muchos más síntomas interesantes como edemas y negaciones como que 100% no tiene gripe A."
     ]
 
-    orch = NERL_Orchestrator(agg_strat='first', device='cpu')
+    method = 'sota'
+
+    pipe = method2pipeline[method]()
     
-    results = orch.predict(texts, [random_footer, random_footer])
+    results = pipe.predict(texts)
     for res in results:
         print(json.dumps(res, ensure_ascii=False, indent=4))
 

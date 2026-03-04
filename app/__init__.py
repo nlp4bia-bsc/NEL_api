@@ -1,8 +1,13 @@
 from flask import Flask, request, jsonify
-from app.pipeline.orchestrator import NERL_Orchestrator
+from app.src.pipelines import SotaPipeline, LookupPipeline
 from app.config import OBLIG_PROPERTIES
 
 app = Flask(__name__)
+
+method2pipeline = {
+    'sota': SotaPipeline,
+    'lookup': LookupPipeline
+}
 
 @app.route("/", methods=["GET"])
 def health():
@@ -39,6 +44,11 @@ def process_bulk():
 
     if not "content" in data.keys():
         return jsonify({"error": "Input must be a dictionary with 'content' key"}), 400
+    
+    method: str = 'sota'
+    if isinstance(data.get("args", ""), str):
+        if (mth:=data.get("args", "")) not in method2pipeline.keys():
+            method = mth
 
     data = data["content"]
 
@@ -57,9 +67,11 @@ def process_bulk():
 
         texts.append(text)
         footers.append(footer)
+
+    pipeline = method2pipeline[method]()
     
-    orch = NERL_Orchestrator(agg_strat='first', device='cpu')
-    results = orch.predict(texts=texts, footers=footers)
+    results = pipeline.predict(texts=texts)
+
     return jsonify(results)
 
 if __name__ == '__main__':
