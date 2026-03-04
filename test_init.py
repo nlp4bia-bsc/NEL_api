@@ -20,8 +20,8 @@ def main():
     }
 
     texts = [
-        "este es un texto de ejemplo.\ncon un paciente procedente de almería aunque nacido en guadalupe, méxico, con mucha tos, mocos, fiebre y la varicela con meningitis.",
-        "otro texto con covid y paracetamol para probar.\ncon más  muchos más síntomas interesantes como edemas."
+        "Este es un texto de ejemplo.\ncon un paciente procedente de almería aunque nacido en guadalupe, méxico, con mucha tos, mocos, fiebre y la varicela con meningitis.",
+        "Otro texto con covid y paracetamol para probar.\ncon más  muchos más síntomas interesantes como edemas y negaciones como que 100% no tiene gripe A."
     ]
 
     orch = NERL_Orchestrator(agg_strat='first', device='cpu')

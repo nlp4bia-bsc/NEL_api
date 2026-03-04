@@ -5,14 +5,18 @@ from sentence_transformers import SentenceTransformer
 
 from app.utils.model_utils import DenseRetriever
 
+
 class NelModel:
+
+class SotaNelModel(NelModel):
     def __init__(self, gaz_pth: str, model_pth: str, vector_db_pth: str, device: str | None = None):
         if device is None:
             device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        self.device = torch.device(device)
+        self.device = device
 
         self.st_model = SentenceTransformer(model_pth).to(self.device)
         self.gazeteer = pd.read_csv(gaz_pth, sep='\t')
+        self.gazeteer.drop_duplicates(subset=["term"], inplace=True)
         self._load_vector_db(vector_db_pth)
         self.biencoder = DenseRetriever(
             gazeteer_df=self.gazeteer, 
@@ -26,18 +30,19 @@ class NelModel:
             self.vector_db = torch.load(vector_db_path, map_location=self.device)
         else:
             print("Vector database not found. Computing vector database...")
-            terms = self.gazeteer['terms'].unique()
+            terms = self.gazeteer['term'].to_list()
             self.vector_db = self.st_model.encode(
-                terms,
+                terms, 
                 show_progress_bar=True, 
                 convert_to_tensor=True,
-                batch_size=4096,
-                device=self.device.type  # make sure encoding runs on the same device
+                normalize_embeddings=True,
+                batch_size=256,
+                device=self.device
             )
             torch.save(self.vector_db, vector_db_path)
             print(f"Vector database saved at {vector_db_path}")
 
-    def run_nel_inference(self, input_mentions: list, k: int=10) -> pd.DataFrame:
+    def run_nel_inference(self, input_mentions: list, k: int=1) -> pd.DataFrame:
         """
         Returns a dataframe where the index is the span and the and the vaues are the code, term, and simmilarity. It can be accessed through df.loc['covid'] --> 1119302008 / 'COVID-19 agudo' / 0.7942
         """
@@ -58,6 +63,8 @@ class NelModel:
             lambda sim: round(sim, 4)
         )
         return candidates_df.set_index('mention')
+    
+    def run_batch_inference(self, )
 
 
 def nel_inference(ner_results: list[list[list[dict]]], model_paths: list[tuple[str, str, str]], device: str | None = None) -> list[list[list[dict]]]:
@@ -88,10 +95,11 @@ def nel_inference(ner_results: list[list[list[dict]]], model_paths: list[tuple[s
         if len(mentions) == 0:
             continue # no mentions for that entity type
 
-        nel_model = NelModel(gaz_pth=gaz_pth,
-                             model_pth=nel_model_pth,
-                             vector_db_pth=vector_db_pth,
-                             device=device)
+        nel_model = NelModel(
+            gaz_pth=gaz_pth,
+            model_pth=nel_model_pth,
+            vector_db_pth=vector_db_pth,
+            device=device)
         
         output = nel_model.run_nel_inference(
             input_mentions=mentions,

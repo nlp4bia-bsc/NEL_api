@@ -12,18 +12,17 @@ Author: Jan Rodríguez Miret
 import torch
 from transformers import pipeline
 from spacy.lang.es import Spanish
-from pathlib import Path
 
 from app.utils.text_preprocessing import pretokenize_sentence
 from app.utils.results_postprocessing import join_all_entities, align_results
 
 class NerModel:
-    def __init__(self, model_checkpoint: str | Path, agg_strat: str = "first", device: str | None = None):
+    def __init__(self, model_checkpoint: str, agg_strat: str = "first", device: str | None = None):
         self.nlp = Spanish()
         self.nlp.add_pipe("sentencizer")
         if device is None:
             device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        self.device = torch.device(device)
+        self.device = device
 
         self.pipe = pipeline(
             task="token-classification", 
@@ -69,26 +68,3 @@ def ner_inference(texts: list[str], ner_models: list[str], device: str | None = 
         results_model = ner_model.infer(texts) # Each element in results_model is a list of entities for the corresponding for each text (list[list[dict]])
         results.append(results_model) 
     return results
-
-# TO TEST IN ISOLATION
-# import sys
-
-# def main():
-#     """
-#     this is just for testing purposes.
-#     """
-#     texts = [
-#         "este es un texto de ejemplo.\ncon un paciente procedente de almería aunque nacido en guadalupe, méxico, con mucha tos, mocos, fiebre y la varicela con meningitis.",
-#         "otro texto con covid y paracetamol para probar.\ncon más  muchos más síntomas interesantes como edemas."
-#     ]
-#     model_dir = "/home/bscuser/.cache/huggingface/hub/"
-
-#     model_paths = [
-#         "models--BSC-NLP4BIA--bsc-bio-ehr-es-carmen-distemist/snapshots/cd1cbf5dbc13432823f7c1915ef39a350fdd1aa1",
-#         "models--BSC-NLP4BIA--bsc-bio-ehr-es-carmen-symptemist/snapshots/a8108ef4d2ee4e4da8ea9f0d8a2fe8d2d2bca367"]
-#     results = ner_inference(texts, [model_dir + m_th for m_th in model_paths], agg_strat="first", device="cpu", combined=False)
-#     print(results)
-
-
-# if __name__ == "__main__":
-#     sys.exit(main())

@@ -4,4 +4,6 @@ __pycache__/
 
 .venv/
 app/resources/*
+app/test_resources/*
 *.ipynb
+outfile.txt
