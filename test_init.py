@@ -3,10 +3,15 @@ os.environ["CUDA_VISIBLE_DEVICES"] = ""
 import sys
 import json
 from app.src.pipelines import SotaPipeline, LookupPipeline
+from app.src.formatter import Dt4h_nlp_cdm
 
 method2pipeline = {
-    'sota': lambda: SotaPipeline(agg_strat="last"),
+    'sota': lambda: SotaPipeline(agg_strat="first"),
     'lookup': LookupPipeline
+}
+
+cdm2formatter = {
+    'dt4hV2': Dt4h_nlp_cdm
 }
 
 def main():
@@ -22,6 +27,7 @@ def main():
         "record_type": "discharge summary",
         "record_format": "txt"
     }
+    footers = [random_footer, random_footer]
 
     texts = [
         "Este es un texto de ejemplo.\ncon un paciente procedente de almería aunque nacido en guadalupe, méxico, con mucha tos, mocos, fiebre y la varicela con meningitis.",
@@ -29,12 +35,18 @@ def main():
     ]
 
     method = 'sota'
-
     pipe = method2pipeline[method]()
+
+    cdm = 'dt4hV2'
+    formatter = cdm2formatter[cdm]()
     
-    results = pipe.predict(texts)
+    annotations = pipe.predict(texts)
+    results = [formatter.serialize(text, ann, footer) for text, ann, footer in zip(texts, annotations, footers)]
     for res in results:
         print(json.dumps(res, ensure_ascii=False, indent=4))
+    
+
+
 
 
 if __name__ == "__main__":
