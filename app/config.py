@@ -32,4 +32,4 @@ NEL_PATHS = [
     )
 ]
 
-LOOKUP_PATH = "<path of the lookup table>"
+# TODO: FIX PATH STRUCTURE

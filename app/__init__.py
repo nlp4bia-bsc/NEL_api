@@ -49,7 +49,7 @@ def process_bulk():
     
     method: str = 'biencoder'
     if isinstance(data.get("args", ""), str):
-        if (mth:=data.get("args", "")) not in method2pipeline.keys():
+        if (mth:=data.get("args", "")) in method2pipeline.keys():
             method = mth
 
     data = data["content"]

@@ -4,7 +4,7 @@ import pandas as pd
 
 from app.config import NER_PATHS, NEL_PATHS, LOOKUP_PATH
 from app.src.ner import ner_inference
-from app.src.nel import biencoder_inference
+from app.src.nel import lookup_inference, biencoder_inference
 from app.src.negation import add_negation_uncertainty_attributes
 from app.utils.results_postprocessing import join_all_entities
 
@@ -83,6 +83,14 @@ class AnnotationPipeline(Protocol):
         """
         pass
 
+class LookupPipeline(AnnotationPipeline):
+    """Direct text → code lookup. No NER step needed."""
+    def __init__(self, case_sensitive = False):
+        self.case_sensitive = case_sensitive
+        self.gazeteer_pth = NEL_PATHS[0][0]
+
+    def predict(self, texts: list[str]) -> list[list[dict]]:
+        return lookup_inference(texts, self.gazeteer_pth, self.case_sensitive)
 
 class BiencoderPipeline(AnnotationPipeline):
     """Full pipeline: NER → NEL (dense retrieval)"""
@@ -97,21 +105,12 @@ class BiencoderPipeline(AnnotationPipeline):
         norm_results = join_all_entities(norm_results)
         final_results = add_negation_uncertainty_attributes(norm_results, neg_results)
         return final_results
-
-
-class LookupPipeline(AnnotationPipeline):
-    """Direct text → code lookup. No NER step needed."""
-    def __init__(self):
-        self.lookup = pd.read_csv(LOOKUP_PATH)
-
-    def predict(self, texts: list[str]) -> list[list[dict]]:
-        # Apply lookup directly to raw text, no NER upstream
-        pass
-
-class FuzzyMatchPipeline(AnnotationPipeline):
-    def __init__(self, method = "levenshtein"):
-        self.method = method
     
-    def predict(self, texts: list[str]) -> list[list[dict]]:
-        # Apply fuzzy matching directly to raw text, no NER upstream
-        pass
+
+# class FuzzyMatchPipeline(AnnotationPipeline):
+#     def __init__(self, method = "jaro_winkler"):
+#         self.method = method
+    
+#     def predict(self, texts: list[str]) -> list[list[dict]]:
+#         # Apply fuzzy matching directly to raw text, no NER upstream
+#         pass
