@@ -6,7 +6,7 @@ from sentence_transformers import SentenceTransformer
 from app.utils.model_utils import DenseRetriever
 
 
-class SotaNelModel:
+class BiencoderNelModel:
     def __init__(self, gaz_pth: str, model_pth: str, vector_db_pth: str, device: str | None = None):
         if device is None:
             device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -62,7 +62,7 @@ class SotaNelModel:
         )
         return candidates_df.set_index('mention')
 
-def nel_inference(ner_results: list[list[list[dict]]], model_paths: list[tuple[str, str, str]], device: str | None = None) -> list[list[list[dict]]]:
+def biencoder_inference(ner_results: list[list[list[dict]]], model_paths: list[tuple[str, str, str]], device: str | None = None) -> list[list[list[dict]]]:
     """
     ner_results = [//result level
         [// entity type level
@@ -90,7 +90,7 @@ def nel_inference(ner_results: list[list[list[dict]]], model_paths: list[tuple[s
         if len(mentions) == 0:
             continue # no mentions for that entity type
 
-        nel_model = SotaNelModel(
+        nel_model = BiencoderNelModel(
             gaz_pth=gaz_pth,
             model_pth=nel_model_pth,
             vector_db_pth=vector_db_pth,

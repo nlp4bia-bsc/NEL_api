@@ -3,9 +3,9 @@ from abc import abstractmethod
 import pandas as pd
 
 from app.config import NER_PATHS, NEL_PATHS, LOOKUP_PATH
-from app.src.sota.ner import ner_inference
-from app.src.sota.nel import nel_inference
-from app.src.sota.negation import add_negation_uncertainty_attributes
+from app.src.ner import ner_inference
+from app.src.nel import biencoder_inference
+from app.src.negation import add_negation_uncertainty_attributes
 from app.utils.results_postprocessing import join_all_entities
 
 class AnnotationPipeline(Protocol):
@@ -84,7 +84,7 @@ class AnnotationPipeline(Protocol):
         pass
 
 
-class SotaPipeline(AnnotationPipeline):
+class BiencoderPipeline(AnnotationPipeline):
     """Full pipeline: NER → NEL (dense retrieval)"""
     def __init__(self, agg_strat="first", device=None):
         self.agg_strat = agg_strat
@@ -93,7 +93,7 @@ class SotaPipeline(AnnotationPipeline):
     def predict(self, texts: list[str]) -> list[list[dict]]:
         ner_results = ner_inference(texts, NER_PATHS, agg_strat=self.agg_strat, device=self.device)
         neg_results = ner_results.pop()
-        norm_results = nel_inference(ner_results, NEL_PATHS, device=self.device)
+        norm_results = biencoder_inference(ner_results, NEL_PATHS, device=self.device)
         norm_results = join_all_entities(norm_results)
         final_results = add_negation_uncertainty_attributes(norm_results, neg_results)
         return final_results
@@ -106,4 +106,12 @@ class LookupPipeline(AnnotationPipeline):
 
     def predict(self, texts: list[str]) -> list[list[dict]]:
         # Apply lookup directly to raw text, no NER upstream
+        pass
+
+class FuzzyMatchPipeline(AnnotationPipeline):
+    def __init__(self, method = "levenshtein"):
+        self.method = method
+    
+    def predict(self, texts: list[str]) -> list[list[dict]]:
+        # Apply fuzzy matching directly to raw text, no NER upstream
         pass

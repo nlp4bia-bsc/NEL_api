@@ -1,12 +1,14 @@
 from flask import Flask, request, jsonify
-from app.src.pipelines import SotaPipeline, LookupPipeline
+from app.src.pipelines import BiencoderPipeline, LookupPipeline, FuzzyMatchPipeline
 from app.config import OBLIG_PROPERTIES
 
 app = Flask(__name__)
 
 method2pipeline = {
-    'sota': SotaPipeline,
-    'lookup': LookupPipeline
+    'biencoder': BiencoderPipeline,
+    'lookup': LookupPipeline,
+    'levenshtein': lambda: FuzzyMatchPipeline(method = 'levenshtein'),
+    'jaro_winkler': lambda: FuzzyMatchPipeline(method = 'jaro_winkler'),
 }
 
 @app.route("/", methods=["GET"])
@@ -45,7 +47,7 @@ def process_bulk():
     if not "content" in data.keys():
         return jsonify({"error": "Input must be a dictionary with 'content' key"}), 400
     
-    method: str = 'sota'
+    method: str = 'biencoder'
     if isinstance(data.get("args", ""), str):
         if (mth:=data.get("args", "")) not in method2pipeline.keys():
             method = mth
