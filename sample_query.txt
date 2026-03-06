@@ -1,0 +1,18 @@
+curl --location 'http://127.0.0.1:5000/process_bulk' \
+--header 'Content-Type: application/json' \
+--data "$(jq -n \
+'{
+  "args": "lookup",
+  "content": [
+    {
+      "text": "El paciente tenia COVID-19",
+      "footer": {
+        "patient_id": "001",
+        "record_id": "001",
+	"admission_id": "001",
+	"admission_date": "15/09/2029",
+	"admission_type": "test",
+      },
+    }
+  ]
+}')"
