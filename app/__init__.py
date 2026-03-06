@@ -11,7 +11,7 @@ method2pipeline = {
 
 @app.route("/", methods=["GET"])
 def health():
-    return "OK", 200
+    return "OK\n", 200
 
 @app.route('/process_bulk', methods=['POST'])
 def process_bulk():
