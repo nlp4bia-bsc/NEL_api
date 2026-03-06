@@ -2,7 +2,7 @@ from typing import Protocol
 from abc import abstractmethod
 import pandas as pd
 
-from app.config import NER_PATHS, NEL_PATHS, LOOKUP_PATH
+from app.config import NER_PATHS, NEL_PATHS
 from app.src.ner import ner_inference
 from app.src.nel import lookup_inference, biencoder_inference
 from app.src.negation import add_negation_uncertainty_attributes

@@ -1,14 +1,12 @@
 from flask import Flask, request, jsonify
-from app.src.pipelines import BiencoderPipeline, LookupPipeline, FuzzyMatchPipeline
+from app.src.pipelines import BiencoderPipeline, LookupPipeline
 from app.config import OBLIG_PROPERTIES
 
 app = Flask(__name__)
 
 method2pipeline = {
     'biencoder': BiencoderPipeline,
-    'lookup': LookupPipeline,
-    'levenshtein': lambda: FuzzyMatchPipeline(method = 'levenshtein'),
-    'jaro_winkler': lambda: FuzzyMatchPipeline(method = 'jaro_winkler'),
+    'lookup': LookupPipeline
 }
 
 @app.route("/", methods=["GET"])
