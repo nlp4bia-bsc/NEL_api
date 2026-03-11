@@ -7,3 +7,7 @@ app/resources/*
 app/test_resources/*
 *.ipynb
 outfile.txt
+app/local_models/*
+app/local_gazetteers/*
+jobs/*
+*.sh

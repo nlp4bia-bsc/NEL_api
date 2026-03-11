@@ -1,20 +1,22 @@
 import sys, os
 import pandas as pd
 import torch
+from pathlib import Path
 from sentence_transformers import SentenceTransformer
 
 from app.utils.model_utils import DenseRetriever
 
 
 class SotaNelModel:
-    def __init__(self, gaz_pth: str, model_pth: str, vector_db_pth: str, device: str | None = None):
+    def __init__(self, gaz_pth: Path, model_pth: Path, vector_db_pth: Path, device: str | None = None):
         if device is None:
             device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.device = device
 
-        self.st_model = SentenceTransformer(model_pth).to(self.device)
-        self.gazeteer = pd.read_csv(gaz_pth, sep='\t')
+        self.st_model = SentenceTransformer(str(model_pth)).to(self.device)
+        self.gazeteer = pd.read_csv(gaz_pth)
         self.gazeteer.drop_duplicates(subset=["term"], inplace=True)
+
         self._load_vector_db(vector_db_pth)
         self.biencoder = DenseRetriever(
             gazeteer_df=self.gazeteer, 
@@ -22,7 +24,7 @@ class SotaNelModel:
             model_or_path=self.st_model
         )
     
-    def _load_vector_db(self, vector_db_path: str):
+    def _load_vector_db(self, vector_db_path: Path):
         if os.path.exists(vector_db_path):
             print("Loading vector database from file...")
             self.vector_db = torch.load(vector_db_path, map_location=self.device)
@@ -62,7 +64,7 @@ class SotaNelModel:
         )
         return candidates_df.set_index('mention')
 
-def nel_inference(ner_results: list[list[list[dict]]], model_paths: list[tuple[str, str, str]], device: str | None = None) -> list[list[list[dict]]]:
+def nel_inference(ner_results: list[list[list[dict]]], nel_model_pth: Path, model_paths: list[tuple[Path, Path]], device: str | None = None) -> list[list[list[dict]]]:
     """
     ner_results = [//result level
         [// entity type level
@@ -75,8 +77,10 @@ def nel_inference(ner_results: list[list[list[dict]]], model_paths: list[tuple[s
         ], (...)
     ]
 
+    nel_model_pth: path to bienncoder model (one per language)
+
     path_list = [
-        "(<gazetteer_path>, <model_path>, <vector_db_path> | None)"
+        "(<gazetteer_path>, <vector_db_path>)"
     ]
 
     returns the same ner_results list of list of list of dict with extra keys for the normalized codes and the simmilarity to the original concept
@@ -85,14 +89,14 @@ def nel_inference(ner_results: list[list[list[dict]]], model_paths: list[tuple[s
     assert len(ner_results) == len(model_paths)
 
     nerl_results = ner_results.copy()
-    for ent_type_idx, (ent_type_mentions, (gaz_pth, nel_model_pth, vector_db_pth)) in enumerate(zip(ner_results, model_paths)): # will iterate over all entity types (both in ner results and nel models)
+    for ent_type_idx, (ent_type_mentions, (gaz_pth, vector_db_pth)) in enumerate(zip(ner_results, model_paths)): # will iterate over all entity types (both in ner results and nel models)
         mentions = [mention_dict['span'] for mention_doc in ent_type_mentions for mention_dict in mention_doc]
         if len(mentions) == 0:
             continue # no mentions for that entity type
 
         nel_model = SotaNelModel(
             gaz_pth=gaz_pth,
-            model_pth=nel_model_pth,
+            model_pth=nel_model_pth, # sucks to call this more than once
             vector_db_pth=vector_db_pth,
             device=device)
         

@@ -1,78 +1,102 @@
+"""
+Flask Application
+=================
+Request body shape for /process_bulk:
+
+{
+    "content": [
+        {"text": "...", "footer": {...}},
+        ...
+    ],
+    "args": {                                   # optional
+        "language": "es",                       # language in ISO 639-1 format
+        "entities": ["disease", "symptom"],     # list of entity types
+        "method": "sota"                        # "sota" | "lookup" (default: "sota")
+    }
+}
+"""
+
 from flask import Flask, request, jsonify
+
 from app.src.pipelines import SotaPipeline, LookupPipeline
-from app.config import OBLIG_PROPERTIES
+from app.models.registry import check_lang
+from app.config import OBLIG_PROPERTIES, DT4H_LANGS, AVAILABLE_ENTITIES
 
 app = Flask(__name__)
 
 method2pipeline = {
-    'sota': SotaPipeline,
-    'lookup': LookupPipeline
+    "sota": lambda **kwargs: SotaPipeline(agg_strat="first", **kwargs),
+    "lookup": LookupPipeline,
 }
+
+# ---------------------------------------------------------------------------
+# Routes
+# ---------------------------------------------------------------------------
 
 @app.route("/", methods=["GET"])
 def health():
     return "OK", 200
 
-@app.route('/process_bulk', methods=['POST'])
+
+@app.route("/process_bulk", methods=["POST"])
 def process_bulk():
     """
-    Process multiple texts using NER Dictionary Lookup
-    ---
-    parameters:
-      - name: body
-        in: body
-        required: true
-        schema:
-          id: bulk_input
-          type: array
-          items:
-            type: object
-            required:
-              - text
-            properties:
-              text:
-                type: string
-                description: The text to process
-    responses:
-      200:
-        description: Processed texts with NER annotations
+    Process multiple texts using the configured annotation pipeline.
     """
     data = request.json
 
-    if not isinstance(data, dict):
-        return jsonify({"error": "Input must be a dictionary with 'content' key"}), 400
+    if not isinstance(data, dict) or "content" not in data:
+        return jsonify({"error": "Input must be a dictionary with a 'content' key"}), 400
 
-    if not "content" in data.keys():
-        return jsonify({"error": "Input must be a dictionary with 'content' key"}), 400
+    content = data["content"]
+    if not isinstance(content, list):
+        return jsonify({"error": "'content' must be a list of objects"}), 400
+
+    # --- Parse args ---------------------------------------------------------- (CAN HANDLE THIS BETTER WHEN WE IMPLEMENT THE OTHER APPROACHES, WILL WORK FOR NOW)
+    args = data.get("args", {}) or {}
+    method: str = args.get("method", "sota")
+    if method not in ("sota", "lookup"):
+        return jsonify({"error": f"Unknown method {method!r}. Use 'sota' or 'lookup'."}), 400
     
-    method: str = 'sota'
-    if isinstance(data.get("args", ""), str):
-        if (mth:=data.get("args", "")) not in method2pipeline.keys():
-            method = mth
+    lang: str = args.get("language", "es")
+    valid_lang, available_entities = check_lang(lang)
+    if not valid_lang:
+        return jsonify({"error": f"Language {lang!r} not fully implemented for sota pipeline."}), 400
+    
+    ents: list = args.get("entities", ["disease"])
+    if any([ent not in available_entities for ent in ents]):
+        incorrect_ent = [ent for ent in ents if ent not in available_entities]
+        return jsonify({"error": f"The following entities are not considered in the registry either because the gazetteer or the ner model for that language is not specified{incorrect_ent!r}"}), 400
 
-    data = data["content"]
-
-    if not isinstance(data, list):
-        return jsonify({"error": "Input must be a list of objects"}), 400
-
-    texts = []
-    footers = []
-    for item in data:
-        text = item.get('text')
-        footer = item.get('footer')
+    # --- Validate content ----------------------------------------------------
+    texts, footers = [], []
+    for item in content:
+        text = item.get("text")
+        footer = item.get("footer")
         if not text:
-            return jsonify({"error": "Each item must contain 'text'"}), 400
-        if any([obligatory_prop not in footer for obligatory_prop in OBLIG_PROPERTIES]):
-            return jsonify({"error": "The input has a missing obligatory property: " + ", ".join(OBLIG_PROPERTIES)}), 400
-
+            return jsonify({"error": "Each item must contain a non-empty 'text' field"}), 400
+        missing_props = [p for p in OBLIG_PROPERTIES if p not in (footer or {})]
+        if missing_props:
+            return jsonify({
+                "error": "Missing obligatory footer properties: " + ", ".join(missing_props)
+            }), 400
         texts.append(text)
         footers.append(footer)
 
-    pipeline = method2pipeline[method]()
+    # --- Run pipeline --------------------------------------------------------
+    try:
+        pipeline = method2pipeline[method](lang, ents)
     
-    results = pipeline.predict(texts=texts)
+        results = pipeline.predict(texts=texts)
+
+    except (ValueError, FileNotFoundError) as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:
+        app.logger.exception("Pipeline error")
+        return jsonify({"error": "Internal pipeline error", "detail": str(exc)}), 500
 
     return jsonify(results)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     app.run(debug=True)

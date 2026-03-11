@@ -6,8 +6,8 @@ from app.src.pipelines import SotaPipeline, LookupPipeline
 from app.src.formatter import Dt4h_nlp_cdm
 
 method2pipeline = {
-    'sota': lambda: SotaPipeline(agg_strat="first"),
-    'lookup': LookupPipeline
+    "sota": lambda **kwargs: SotaPipeline(agg_strat="first", **kwargs),
+    "lookup": LookupPipeline,
 }
 
 cdm2formatter = {
@@ -35,10 +35,14 @@ def main():
     ]
 
     method = 'sota'
-    pipe = method2pipeline[method]()
+    lang = "es"
+    entities = ["disease", "symptoms"]
+    # entities = ["disease"]
+    pipe = method2pipeline[method](lang=lang, entities=entities)
 
     cdm = 'dt4hV2'
     formatter = cdm2formatter[cdm]()
+
     
     annotations = pipe.predict(texts)
     results = [formatter.serialize(text, ann, footer) for text, ann, footer in zip(texts, annotations, footers)]

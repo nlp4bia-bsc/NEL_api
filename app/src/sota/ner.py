@@ -11,13 +11,14 @@ Author: Jan Rodríguez Miret
 """
 import torch
 from transformers import pipeline
+from pathlib import Path
 from spacy.lang.es import Spanish
 
 from app.utils.text_preprocessing import pretokenize_sentence
 from app.utils.results_postprocessing import join_all_entities, align_results
 
 class NerModel:
-    def __init__(self, model_checkpoint: str, agg_strat: str = "first", device: str | None = None):
+    def __init__(self, model_checkpoint: Path, agg_strat: str = "first", device: str | None = None):
         self.nlp = Spanish()
         self.nlp.add_pipe("sentencizer")
         if device is None:
@@ -26,7 +27,7 @@ class NerModel:
 
         self.pipe = pipeline(
             task="token-classification", 
-            model=model_checkpoint, 
+            model=str(model_checkpoint), 
             aggregation_strategy=agg_strat, 
             device=self.device,
             )
@@ -38,8 +39,8 @@ class NerModel:
         results_pre = self.pipe(sentence_pretokenized)
         # Convert numpy types to native Python types for JSON serialization
         for entity in results_pre:
-            entity['ner_score'] = entity.pop('score')
-            entity['ner_score'] = round(float(entity['ner_score']), 4)
+            str_score = entity.pop('score')
+            entity['ner_score'] = round(float(str_score), 4)
         # Align model results to original text offsets
         results = align_results(results_pre, added_spaces_pos, sentence_start_offset)
         return results
@@ -61,7 +62,7 @@ class NerModel:
 
 
 
-def ner_inference(texts: list[str], ner_models: list[str], device: str | None = None, agg_strat: str="first") -> list[list[list[dict]]]:
+def ner_inference(texts: list[str], ner_models: list[Path], device: str | None = None, agg_strat: str="first") -> list[list[list[dict]]]:
     results = []
     for model_checkpoint in ner_models:
         ner_model = NerModel(model_checkpoint, agg_strat=agg_strat, device=device)
