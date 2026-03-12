@@ -5,9 +5,9 @@ from pathlib import Path
 import pandas as pd
 
 from app.models.resolver import ModelResolver
-from app.src.sota.ner import ner_inference
-from app.src.sota.nel import nel_inference
-from app.src.sota.negation import add_negation_uncertainty_attributes
+from app.src.ner import ner_inference
+from app.src.nel import lookup_inference, fuzzymatch_inference, biencoder_inference
+from app.src.negation import add_negation_uncertainty_attributes
 from app.utils.results_postprocessing import join_all_entities
 from app.config import LOOKUP_PATH
 
@@ -87,7 +87,34 @@ class AnnotationPipeline(Protocol):
         """
         pass
 
-class SotaPipeline(AnnotationPipeline):
+
+class LookupPipeline(AnnotationPipeline):
+    """Direct text → code lookup. No NER step needed."""
+    def __init__(self, case_sensitive = False):
+        self.case_sensitive = case_sensitive
+        self.gazeteer_pth = NEL_PATHS[0][0]
+
+    def predict(self, texts: list[str]) -> list[list[dict]]:
+        return lookup_inference(texts, self.gazeteer_pth, self.case_sensitive)
+    
+    # TODO: DO I NEED TO ADD NEGATION?  
+    
+    
+class FuzzyMatchPipeline(AnnotationPipeline):
+    def __init__(self, device = None, method = "jaro_winkler", threshold = 0.7, agg_strat = "first"):
+        self.device = device
+        
+        self.method = method
+        self.threshold = threshold
+
+        self.agg_strat = agg_strat
+    
+    def predict(self, texts: list[str]) -> list[list[dict]]:
+        ner_results = ner_inference(texts, NER_PATHS, agg_strat = self.agg_strat, device = self.device)
+        ner_results.pop() # remove negation
+
+
+class BiencoderPipeline(AnnotationPipeline):
     """
     Full pipeline: NER → NEL (dense retrieval) → Negation.
 
@@ -143,19 +170,9 @@ class SotaPipeline(AnnotationPipeline):
             texts, [self.neg_path], agg_strat=self.agg_strat, device=self.device
         )
         # NEL normalisation — single BiEncoder, per-entity gazetteers
-        norm_results = nel_inference(
+        norm_results = biencoder_inference(
             ner_results, self.nel_path, self.gaz_and_vdb, device=self.device
         )
         norm_results = join_all_entities(norm_results)
         final_results = add_negation_uncertainty_attributes(norm_results, neg_results[0])
         return final_results
-
-
-class LookupPipeline(AnnotationPipeline):
-    """Direct text → code lookup. No NER step needed."""
-    def __init__(self, lang: str, entities: list[str]):
-        self.lookup = pd.read_csv(Path(LOOKUP_PATH) / lang / entities[0])
-
-    def predict(self, texts: list[str]) -> list[list[dict]]:
-        # Apply lookup directly to raw text, no NER upstream
-        pass
