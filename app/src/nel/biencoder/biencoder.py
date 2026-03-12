@@ -7,7 +7,7 @@ from sentence_transformers import SentenceTransformer
 from app.utils.model_utils import DenseRetriever
 
 
-class SotaNelModel:
+class BiencoderModel:
     def __init__(self, gaz_pth: Path, model_pth: Path, vector_db_pth: Path, device: str | None = None):
         if device is None:
             device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -94,7 +94,7 @@ def biencoder_inference(ner_results: list[list[list[dict]]], nel_model_pth: Path
         if len(mentions) == 0:
             continue # no mentions for that entity type
 
-        nel_model = SotaNelModel(
+        nel_model = BiencoderModel(
             gaz_pth=gaz_pth,
             model_pth=nel_model_pth, # sucks to call this more than once
             vector_db_pth=vector_db_pth,

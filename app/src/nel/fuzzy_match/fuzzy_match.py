@@ -71,7 +71,7 @@ class FuzzyMatchMethod:
         # store results in dict
         original_term, code = self.term_to_info.get(matched_term, (matched_term, "NO_MAP"))
         result = {
-            "ner_class": f"FUZZYMATCH_{self.method.upper()}",
+            "nel_class": f"FUZZYMATCH_{self.method.upper()}",
             "code": code,
             "term": original_term,
             "nel_score": score,
@@ -79,16 +79,18 @@ class FuzzyMatchMethod:
         
         return result
             
-def fuzzymatch_inference(ner_results: list[list[list[dict]]], gaz_path: str, method: str, threshold: float) -> list[list[list[dict]]]:
+def fuzzymatch_inference(ner_results: list[list[list[dict]]], gaz_pths: str, method: str, threshold: float) -> list[list[list[dict]]]:
+
+    assert len(ner_results) == len(gaz_pths)
 
     nerl_results = ner_results.copy()
     
-    for ent_type_idx, (ent_type_mentions, gaz_pth) in enumerate(ner_results):
+    for ent_type_idx, (ent_type_mentions, gaz) in enumerate(ner_results, gaz_pths):
         mentions = [mention_dict['span'] for mention_doc in ent_type_mentions for mention_dict in mention_doc]
         if len(mentions) == 0:
             continue
 
-        fuzzy_engine = FuzzyMatchMethod(gaz_path = gaz_pth, method = method, threshold = threshold)
+        fuzzy_engine = FuzzyMatchMethod(gaz_path = gaz, method = method, threshold = threshold)
 
         for mention_doc in ner_results[ent_type_idx]:
             for mention_dict in mention_doc:

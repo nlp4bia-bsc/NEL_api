@@ -4,8 +4,7 @@ from flashtext import KeywordProcessor
 
 
 class LookUpMethod:
-    def __init__(self, gaz_pth: str, case_sensitive: bool):
-        self.case_sensitive = case_sensitive
+    def __init__(self, gaz_pth: str):
         
         # load gazeteer
         self.gazeteer = pd.read_csv(gaz_pth, sep='\t').drop_duplicates(subset=["term"])
@@ -23,7 +22,7 @@ class LookUpMethod:
         }
         
         # build and populate processor engine
-        self.keyword_processor = KeywordProcessor(case_sensitive = case_sensitive)
+        self.keyword_processor = KeywordProcessor(case_sensitive = False) # we are already normalizing everything to lowercase
         self.keyword_processor.add_keywords_from_list(clean_terms)
                     
     def _normalize(self, text: str) -> str:
@@ -37,9 +36,11 @@ class LookUpMethod:
         # normalize text
         norm_text = self._normalize(text)
         
+        # find matches in normalized text
         matches = self.keyword_processor.extract_keywords(norm_text, span_info=True)
         results = []
         
+        # for each match, store results in CDM structure
         for matched_term, start, end in matches:
             original_term, code = self.term_to_info.get(matched_term, (matched_term, "NO_MAP"))
             results.append({
@@ -55,14 +56,22 @@ class LookUpMethod:
         return results
 
 
-def lookup_inference(texts: list[str], gaz_pth: str, case_sensitive: bool) -> list[list[dict]]:  
-    lookup_engine = LookUpMethod(gaz_pth, case_sensitive)
-
+def lookup_inference(texts: list[str], gaz_pths: list[str]) -> list[list[list[dict]]]:  
+    
     results = []
-    for text in texts:
-        text_results = []
-        text_results.extend(lookup_engine.run_lookup(text))
-        #text_results.sort(key=lambda x: (x['start'], -x['end']))
-        results.append(text_results)
+    
+    # extract words for each gazeteer
+    for gaz in gaz_pths:
+    
+        lookup_engine = LookUpMethod(gaz)
+
+        gaz_results = []
+        for text in texts:
+            text_results = []
+            text_results.extend(lookup_engine.run_lookup(text))
+            #text_results.sort(key=lambda x: (x['start'], -x['end']))
+            gaz_results.append(text_results)
+    
+        results.append(gaz_results)
         
     return results

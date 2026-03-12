@@ -90,28 +90,50 @@ class AnnotationPipeline(Protocol):
 
 class LookupPipeline(AnnotationPipeline):
     """Direct text → code lookup. No NER step needed."""
-    def __init__(self, case_sensitive = False):
-        self.case_sensitive = case_sensitive
-        self.gazeteer_pth = NEL_PATHS[0][0]
+    def __init__(self, lang: str, entities: list[str]):
+                
+        # list of gath paths
+        resolver = ModelResolver()
+        self.gazeteer_pths = [resolver.resolve_gazetteer(lang, e)[0] for e in entities] 
 
     def predict(self, texts: list[str]) -> list[list[dict]]:
-        return lookup_inference(texts, self.gazeteer_pth, self.case_sensitive)
-    
-    # TODO: DO I NEED TO ADD NEGATION?  
+        
+        # obtain results
+        inference_results = lookup_inference(texts, self.gazeteer_pths, self.case_sensitive)
+        
+        # return flattened results: list[list[list[dict]]] -> list[list[dict]]
+        return join_all_entities(inference_results)
     
     
 class FuzzyMatchPipeline(AnnotationPipeline):
-    def __init__(self, device = None, method = "jaro_winkler", threshold = 0.7, agg_strat = "first"):
+    def __init__(self, lang: str, entities: list[str], method = "jaro_winkler", threshold = 0.7, agg_strat = "first", device = None):
         self.device = device
-        
+
+        # method parameters
         self.method = method
         self.threshold = threshold
+        
+        resolver = ModelResolver()
 
+        # NER paths: one ner per entity
+        self.ner_pths = [resolver.resolve_ner(lang, e) for e in entities]
         self.agg_strat = agg_strat
-    
+        
+        # list of gath paths
+        self.gaz_pths = [resolver.resolve_gazetteer(lang, e)[0] for e in entities]    
+        
+        self.device = device     
+        
     def predict(self, texts: list[str]) -> list[list[dict]]:
-        ner_results = ner_inference(texts, NER_PATHS, agg_strat = self.agg_strat, device = self.device)
-        ner_results.pop() # remove negation
+        
+        # run NER per entity
+        ner_results = ner_inference(texts, self.ner_pths, agg_strat = self.agg_strat, device = self.device)
+        
+        # run fuzzy match on extracted entities
+        fuzzy_result = fuzzymatch_inference(ner_results, self.gaz_pths, self.method, self.threshold)
+        
+        # return flattened results: list[list[list[dict]]] -> list[list[dict]]
+        return join_all_entities(fuzzy_result)
 
 
 class BiencoderPipeline(AnnotationPipeline):
