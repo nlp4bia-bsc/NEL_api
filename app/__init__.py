@@ -1,15 +1,17 @@
+from functools import partial
 from flask import Flask, request, jsonify
 from app.src.pipelines import LookupPipeline, FuzzyMatchPipeline, BiencoderPipeline
 from app.config import OBLIG_PROPERTIES
+
 
 app = Flask(__name__)
 
 method2pipeline = {
     'lookup': LookupPipeline,
-    'levenshtein': FuzzyMatchPipeline(),
-    'jaro-winkler': FuzzyMatchPipeline(),
-    'token-sort-ratio': FuzzyMatchPipeline(),
-    'token-set-ratio': FuzzyMatchPipeline(),
+    'levenshtein': partial(FuzzyMatchPipeline, method = 'levenshtein'),
+    'jaro-winkler': partial(FuzzyMatchPipeline, method = 'jaro_winkler'),
+    'token-sort-ratio': partial(FuzzyMatchPipeline, method = 'token_sort_ratio'),
+    'token-set-ratio': partial(FuzzyMatchPipeline, method = 'token_set_ratio'),
     'biencoder': BiencoderPipeline,
 }
 
@@ -51,7 +53,7 @@ def process_bulk():
     
     method: str = 'sota'
     if isinstance(data.get("args", ""), str):
-        if (mth:=data.get("args", "")) not in method2pipeline.keys():
+        if (mth:=data.get("args", "")) in method2pipeline.keys():
             method = mth
 
     data = data["content"]
