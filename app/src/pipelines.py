@@ -1,12 +1,16 @@
 from typing import Protocol
 from abc import abstractmethod
+from pathlib import Path
+
 import pandas as pd
 
-from app.config import NER_PATHS, NEL_PATHS, LOOKUP_PATH
+from app.models.resolver import ModelResolver
 from app.src.sota.ner import ner_inference
 from app.src.sota.nel import nel_inference
 from app.src.sota.negation import add_negation_uncertainty_attributes
 from app.utils.results_postprocessing import join_all_entities
+from app.config import LOOKUP_PATH
+
 
 class AnnotationPipeline(Protocol):
     @abstractmethod
@@ -83,26 +87,74 @@ class AnnotationPipeline(Protocol):
         """
         pass
 
-
 class SotaPipeline(AnnotationPipeline):
-    """Full pipeline: NER → NEL (dense retrieval)"""
-    def __init__(self, agg_strat="first", device=None):
+    """
+    Full pipeline: NER → NEL (dense retrieval) → Negation.
+
+    Parameters
+    ----------
+    lang : str
+        Language code, e.g. "es". All texts in a request are assumed to share
+        this language.
+    entities : list[str]
+        Entity types to detect, e.g. ["disease", "symptoms"].
+        Each type must have a corresponding NER entry and gazetteer in the
+        registry. A single NEL model and a single negation model are shared
+        across all entity types for the language.
+    agg_strat : str
+        NER aggregation strategy passed to ner_inference. Default "first".
+    device : str or None
+        Torch device string, e.g. "cuda:0". None = auto-select.
+    """
+
+    def __init__(
+        self,
+        lang: str,
+        entities: list[str],
+        agg_strat: str = "first",
+        device=None,
+    ):
+        resolver = ModelResolver()
+
+        # One NER model per entity type
+        self.ner_paths = [resolver.resolve_ner(lang, e) for e in entities]
+
+        # One NEL (BiEncoder) model shared across all entity types for this language
+        self.nel_path = resolver.resolve_nel(lang)
+
+        # Per-entity gazetteers: list of (gaz_path, vector_db_path)
+        self.gaz_and_vdb = [resolver.resolve_gazetteer(lang, e) for e in entities]
+
+        # Single negation model for this language, decoupled from the NER list
+        self.neg_path = resolver.resolve_negation(lang)
+
         self.agg_strat = agg_strat
         self.device = device
 
     def predict(self, texts: list[str]) -> list[list[dict]]:
-        ner_results = ner_inference(texts, NER_PATHS, agg_strat=self.agg_strat, device=self.device)
-        neg_results = ner_results.pop()
-        norm_results = nel_inference(ner_results, NEL_PATHS, device=self.device)
+        # Entity NER — one model per entity type
+        ner_results = ner_inference(
+            texts, self.ner_paths, agg_strat=self.agg_strat, device=self.device
+        )
+        # Negation — separate pass with its own model
+        # NOTE: if negation.py has a dedicated inference function with a different
+        # signature than ner_inference, replace this call with that function.
+        neg_results = ner_inference(
+            texts, [self.neg_path], agg_strat=self.agg_strat, device=self.device
+        )
+        # NEL normalisation — single BiEncoder, per-entity gazetteers
+        norm_results = nel_inference(
+            ner_results, self.nel_path, self.gaz_and_vdb, device=self.device
+        )
         norm_results = join_all_entities(norm_results)
-        final_results = add_negation_uncertainty_attributes(norm_results, neg_results)
+        final_results = add_negation_uncertainty_attributes(norm_results, neg_results[0])
         return final_results
 
 
 class LookupPipeline(AnnotationPipeline):
     """Direct text → code lookup. No NER step needed."""
-    def __init__(self):
-        self.lookup = pd.read_csv(LOOKUP_PATH)
+    def __init__(self, lang: str, entities: list[str]):
+        self.lookup = pd.read_csv(Path(LOOKUP_PATH) / lang / entities[0])
 
     def predict(self, texts: list[str]) -> list[list[dict]]:
         # Apply lookup directly to raw text, no NER upstream

@@ -1,35 +1,18 @@
-# NER_PATHS = [
-#     "app/resources/ner_models/carmen-core-models/bsc-bio-ehr-es-carmen-distemist", 
-#     "app/resources/ner_models/carmen-core-models/bsc-bio-ehr-es-carmen-symptemist",
-#     "app/resources/ner_models/negation" # NEGATION MUST BE THE LAST!!
-# ]
+import os
 
-# NEL_PATHS = [
-#     (
-#         "app/resources/gazetteers/distemist_gazetteer.tsv",
-#         "app/resources/nel_models/ICB-UMA--ClinLinker-KB-GP-st",
-#         "app/resources/gazetteers/vectorized_distemist_gazetteer.pt"
-#     ),
-#     (
-#         "app/resources/gazetteers/symptemist_gazetteer.tsv",
-#         "app/resources/nel_models/ICB-UMA--ClinLinker-KB-GP-st",
-#         "app/resources/gazetteers/vectorized_symptemist_gazetteer.pt"
-#     )
-# ]
-
-OBLIG_PROPERTIES = ["patient_id", "record_id", "admission_id", "admission_date", "admission_type"]
-
-NER_PATHS = [
-    "app/test_resources/ner_models/distemist", 
-    "app/test_resources/ner_models/negation" # NEGATION MUST BE THE LAST!!
+OBLIG_PROPERTIES = [
+    "patient_id", "record_id", "admission_id", "admission_date", "admission_type"
+]
+DT4H_LANGS = [
+    'es', 'en', 'it', 'ro', 'cz', 'se', 'nl'
 ]
 
-NEL_PATHS = [
-    (
-        "app/test_resources/gazetteers/dictionary_distemist.tsv",
-        "app/test_resources/nel_models/clinlinker",
-        "app/test_resources/gazetteers/vectorized_gazetteer_distemist.pt" # if this file doesn't exist, it will be created at runtime
-    )
-]
+AVAILABLE_ENTITIES = ["disease", "symptom", "pharmac"]
 
-LOOKUP_PATH = "<path of the lookup table>"
+# Base directory where all models are stored.
+# In Docker this will be a named volume mounted at /models.
+# Locally it defaults to ./models for development convenience.
+MODEL_CACHE_DIR = os.environ.get("MODEL_CACHE_DIR", "/gpfs/projects/bsc14/erodrig/NEL_api/app/local_models")
+GAZETTEER_CHACHE_DIR = os.environ.get("MODEL_CACHE_DIR", "/gpfs/projects/bsc14/erodrig/NEL_api/app/local_gazetteers")
+
+LOOKUP_PATH = "/gpfs/projects/bsc14/erodrig/NEL_api/app/lookup.csv"
