@@ -1,12 +1,16 @@
 from flask import Flask, request, jsonify
-from app.src.pipelines import SotaPipeline, LookupPipeline
+from app.src.pipelines import LookupPipeline, FuzzyMatchPipeline, BiencoderPipeline
 from app.config import OBLIG_PROPERTIES
 
 app = Flask(__name__)
 
 method2pipeline = {
-    'sota': SotaPipeline,
-    'lookup': LookupPipeline
+    'lookup': LookupPipeline,
+    'levenshtein': FuzzyMatchPipeline(),
+    'jaro-winkler': FuzzyMatchPipeline(),
+    'token-sort-ratio': FuzzyMatchPipeline(),
+    'token-set-ratio': FuzzyMatchPipeline(),
+    'biencoder': BiencoderPipeline,
 }
 
 @app.route("/", methods=["GET"])
