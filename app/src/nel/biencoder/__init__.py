@@ -1,0 +1,1 @@
+from .biencoder import biencoder_inference
