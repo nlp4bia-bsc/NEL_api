@@ -14,5 +14,6 @@ AVAILABLE_ENTITIES = ["disease", "symptom", "pharmac"]
 # Locally it defaults to ./models for development convenience.
 MODEL_CACHE_DIR = os.environ.get("MODEL_CACHE_DIR", "/gpfs/projects/bsc14/erodrig/NEL_api/app/local_models")
 GAZETTEER_CHACHE_DIR = os.environ.get("MODEL_CACHE_DIR", "/gpfs/projects/bsc14/erodrig/NEL_api/app/local_gazetteers")
+VECTOR_DB_CHACHE_DIR = os.environ.get("MODEL_CACHE_DIR", "/gpfs/projects/bsc14/erodrig/NEL_api/app/local_vector_dbs")
 
 LOOKUP_PATH = "/gpfs/projects/bsc14/erodrig/NEL_api/app/lookup.csv"

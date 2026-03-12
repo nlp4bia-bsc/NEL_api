@@ -1,9 +1,14 @@
 import yaml
 import argparse
+import pandas as pd
 from pathlib import Path
+import torch
+from sentence_transformers import SentenceTransformer
 
-from app.config import REGISTRY_PATH
+
+from app.config import REGISTRY_PATH, VECTOR_DB_CHACHE_DIR
 from app.utils.download_model import HF_download_model
+from app.utils.model_utils import DenseRetriever
 
 def import_registry(path) -> dict: 
     '''
@@ -110,6 +115,39 @@ def download_nel(nel_model: dict):
         local_path = Path(local_path)
         if not local_path.is_dir(): 
             raise ValueError(f"The local path provided does not exist: {local_path!r}") 
+
+def _load_vector_db(gazetteer: pd.DataFrame, nel_model: SentenceTransformer, vector_db_path: Path, device: str):
+        print("Vector database not found. Computing vector database...")
+        terms = gazetteer['term'].to_list()
+        vector_db = nel_model.encode(
+            terms, 
+            show_progress_bar=True, 
+            convert_to_tensor=True,
+            normalize_embeddings=True,
+            batch_size=256,
+            device=device
+        )
+        torch.save(vector_db, vector_db_path)
+        print(f"Vector database saved at {vector_db_path}")
+
+def create_vector_db(registry: dict[str, dict], lang: str, entities: list[str]):
+    gaz_registry = registry['gazetteers'][lang]
+    vector_db_lang_pth = Path(VECTOR_DB_CHACHE_DIR) / lang
+    
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    nel_model = SentenceTransformer(registry['nel'][lang]['local_path']) # we just created this, if not, the code would explode earlier
+    for ent in entities:
+        vector_db_pth = vector_db_lang_pth / ent
+        if vector_db_pth.exists():
+            if not registry['vectorized_dbs'][lang][ent]: # for some fucking wierd reason
+                registry['vectorized_dbs'][lang][ent] = str(vector_db_pth)
+            print(f"Vector database already present at {vector_db_pth}")
+            continue
+
+        # else creates vector db and populates path
+        ent_gaz = pd.read_csv(gaz_registry[ent]).drop_duplicates(subset=["term"]) 
+        _load_vector_db(ent_gaz, nel_model, vector_db_pth, device)
+        registry['vectorized_dbs'][lang][ent] = str(vector_db_pth)
         
         
 def upload_registry(registry_path: Path, registry: dict):
@@ -129,7 +167,7 @@ def main(lang: str, entities: list[str]):
     check_gazzetteers(registry['gazetteers'][lang], entities) 
     download_ner(registry['ner'][lang], entities) 
     download_nel(registry['nel'][lang])
-    create_vector_db(registry['gazetteers'], registry['nel'], entities)
+    create_vector_db(registry, lang, entities)
     upload_registry(REGISTRY_PATH, registry)
 
 
