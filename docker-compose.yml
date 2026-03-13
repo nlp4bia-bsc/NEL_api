@@ -1,6 +1,6 @@
 services:
-  ner-linking-api:
-    container_name: ner-linking-api
+  nerl-api:
+    container_name: nerl-cont
     build: .
     user: root
     environment:
@@ -9,7 +9,7 @@ services:
     ports:
       - "5000:5000"
     volumes:
-      - ./app:/NERL_API/app   # map local /app to container container /app 
+      - ./app:/NERL_API/app   # map local /app to container container /app
     restart: unless-stopped
     privileged: true
 

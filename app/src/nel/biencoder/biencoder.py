@@ -15,7 +15,7 @@ class BiencoderModel:
         self.device = device
 
         self.st_model = SentenceTransformer(str(model_pth)).to(self.device)
-        self.gazetteer = pd.read_csv(gaz_pth)
+        self.gazetteer = pd.read_csv(gaz_pth, sep='\t')
         self.gazetteer.drop_duplicates(subset=["term"], inplace=True)
 
         self.vector_db = load_as_torch_tensor(vector_db_pth, gazz_terms=len(self.gazetteer), device=self.device)

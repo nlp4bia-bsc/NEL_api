@@ -1,10 +1,7 @@
 from typing import Protocol
 from abc import abstractmethod
-from pathlib import Path
 
-import pandas as pd
-
-from app.models.resolver import ModelResolver
+from app.resolver import LocalResolver
 from app.src.ner import ner_inference
 from app.src.nel import lookup_inference, fuzzymatch_inference, bm25okapi_inference, biencoder_inference
 from app.src.negation import add_negation_uncertainty_attributes
@@ -89,74 +86,68 @@ class AnnotationPipeline(Protocol):
 
 class LookupPipeline(AnnotationPipeline):
     """Direct text → code lookup. No NER step needed."""
+
     def __init__(self, lang: str, entities: list[str]):
-                
-        # list of gath paths
-        resolver = ModelResolver()
-        self.gazeteer_pths = [resolver.resolve_gazetteer(lang, e)[0] for e in entities] 
+        resolver = LocalResolver(lang, entities)
+        gaz_locations = resolver.resolve_gazetter()
+        self.gaz_pths = [gaz_locations[e] for e in entities]
 
     def predict(self, texts: list[str]) -> list[list[dict]]:
-        
-        # obtain results
-        inference_results = lookup_inference(texts, self.gazeteer_pths)
-        
-        # return flattened results: list[list[list[dict]]] -> list[list[dict]]
+        inference_results = lookup_inference(texts, self.gaz_pths)
         return join_all_entities(inference_results)
-    
-    
+
+
 class FuzzyMatchPipeline(AnnotationPipeline):
-    def __init__(self, lang: str, entities: list[str], method = "jaro_winkler", threshold = 0.7, agg_strat = "first", device = None):
-        
-        # method parameters
+
+    def __init__(
+        self,
+        lang: str,
+        entities: list[str],
+        method: str = "jaro_winkler",
+        threshold: float = 0.7,
+        agg_strat: str = "first",
+        device=None,
+    ):
         self.method = method
         self.threshold = threshold
-        
-        resolver = ModelResolver()
-
-        # NER paths: one ner per entity
-        self.ner_pths = [resolver.resolve_ner(lang, e) for e in entities]
         self.agg_strat = agg_strat
-        
-        # list of gath paths
-        self.gaz_pths = [resolver.resolve_gazetteer(lang, e)[0] for e in entities]    
-        
-        self.device = device     
-        
-    def predict(self, texts: list[str]) -> list[list[dict]]:
-        
-        # run NER per entity
-        ner_results = ner_inference(texts, self.ner_pths, agg_strat = self.agg_strat, device = self.device)
-        
-        # run fuzzy match on extracted entities
-        fuzzy_result = fuzzymatch_inference(ner_results, self.gaz_pths, self.method, self.threshold)
-        
-        # return flattened results: list[list[list[dict]]] -> list[list[dict]]
-        return join_all_entities(fuzzy_result)
-    
-class BM25OkapiPipeline(AnnotationPipeline):
-    def __init__(self, lang: str, entities: list[str], agg_strat = "first", device = None):
         self.device = device
 
-        resolver = ModelResolver()
+        resolver = LocalResolver(lang, entities)
+        ner_locations = resolver.resolve_ner()
+        gaz_locations = resolver.resolve_gazetter()
 
-        # NER paths: one ner per entity
-        self.ner_pths = [resolver.resolve_ner(lang, e) for e in entities]
-        self.agg_strat = agg_strat
-        
-        # list of gath paths
-        self.gaz_pths = [resolver.resolve_gazetteer(lang, e)[0] for e in entities]    
-        
-        self.device = device     
-        
+        self.ner_pths = [ner_locations[e] for e in entities]
+        self.gaz_pths = [gaz_locations[e] for e in entities]
+
     def predict(self, texts: list[str]) -> list[list[dict]]:
-        
-        # run NER per entity
-        ner_results = ner_inference(texts, self.ner_pths, agg_strat = self.agg_strat, device = self.device)
-        
-        # run bm25 inference on extracted entities
+        ner_results = ner_inference(texts, self.ner_pths, agg_strat=self.agg_strat, device=self.device)
+        fuzzy_result = fuzzymatch_inference(ner_results, self.gaz_pths, self.method, self.threshold)
+        return join_all_entities(fuzzy_result)
+
+
+class BM25OkapiPipeline(AnnotationPipeline):
+
+    def __init__(
+        self,
+        lang: str,
+        entities: list[str],
+        agg_strat: str = "first",
+        device=None,
+    ):
+        self.agg_strat = agg_strat
+        self.device = device
+
+        resolver = LocalResolver(lang, entities)
+        ner_locations = resolver.resolve_ner()
+        gaz_locations = resolver.resolve_gazetter()
+
+        self.ner_pths = [ner_locations[e] for e in entities]
+        self.gaz_pths = [gaz_locations[e] for e in entities]
+
+    def predict(self, texts: list[str]) -> list[list[dict]]:
+        ner_results = ner_inference(texts, self.ner_pths, agg_strat=self.agg_strat, device=self.device)
         bm25_result = bm25okapi_inference(ner_results, self.gaz_pths)
-        
-        # return flattened results: list[list[list[dict]]] -> list[list[dict]]
         return join_all_entities(bm25_result)
 
 
@@ -187,22 +178,25 @@ class BiencoderPipeline(AnnotationPipeline):
         agg_strat: str = "first",
         device=None,
     ):
-        resolver = ModelResolver()
-
-        # One NER model per entity type
-        self.ner_paths = [resolver.resolve_ner(lang, e) for e in entities]
-
-        # One NEL (BiEncoder) model shared across all entity types for this language
-        self.nel_path = resolver.resolve_nel(lang)
-
-        # Per-entity gazetteers: list of (gaz_path, vector_db_path)
-        self.gaz_and_vdb = [resolver.resolve_gazetteer(lang, e) for e in entities]
-
-        # Single negation model for this language, decoupled from the NER list
-        self.neg_path = resolver.resolve_negation(lang)
-
         self.agg_strat = agg_strat
         self.device = device
+
+        resolver = LocalResolver(lang, entities)
+        ner_locations = resolver.resolve_ner()
+        gaz_locations = resolver.resolve_gazetter()
+        vdb_locations = resolver.resolve_vector_db()
+
+        # One NER model path per entity type
+        self.ner_paths = [ner_locations[e] for e in entities]
+
+        # Single NEL (BiEncoder) model shared across all entity types
+        self.nel_path = resolver.resolve_nel()
+
+        # Per-entity (gaz_path, vector_db_path) pairs for the NEL step
+        self.gaz_and_vdb = [(gaz_locations[e], vdb_locations[e]) for e in entities]
+
+        # Single negation model, resolved independently of the entity NER models
+        self.neg_path = resolver.resolve_negation()
 
     def predict(self, texts: list[str]) -> list[list[dict]]:
         # Entity NER — one model per entity type
@@ -210,15 +204,12 @@ class BiencoderPipeline(AnnotationPipeline):
             texts, self.ner_paths, agg_strat=self.agg_strat, device=self.device
         )
         # Negation — separate pass with its own model
-        # NOTE: if negation.py has a dedicated inference function with a different
-        # signature than ner_inference, replace this call with that function.
         neg_results = ner_inference(
             texts, [self.neg_path], agg_strat=self.agg_strat, device=self.device
         )
-        # NEL normalisation — single BiEncoder, per-entity gazetteers
+        # NEL normalisation — single BiEncoder, per-entity gazetteers + vector DBs
         norm_results = biencoder_inference(
             ner_results, self.nel_path, self.gaz_and_vdb, device=self.device
         )
         norm_results = join_all_entities(norm_results)
-        final_results = add_negation_uncertainty_attributes(norm_results, neg_results[0])
-        return final_results
+        return add_negation_uncertainty_attributes(norm_results, neg_results[0])

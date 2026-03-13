@@ -1,5 +1,3 @@
-from app.config import MODEL_CACHE_DIR 
-
 from pathlib import Path
 import pandas as pd 
 from sentence_transformers import SentenceTransformer
@@ -9,22 +7,16 @@ import numpy as np
 import gc
 from tqdm import tqdm
 
-from app.config import MODEL_CACHE_DIR 
-
-def HF_download_model(repo_id: str, path: str) -> str:
+def HF_download_model(repo_id: str, path: Path) -> str:
     '''
     Given a model repo_id and path name, it downlaods the model in model cache and returns the new local path
     '''
-
-    cache_path = Path(MODEL_CACHE_DIR)
-    local_path = cache_path / path
-    
     snapshot_download(
         repo_id = repo_id,
-        local_dir = local_path
+        local_dir = path
     )
     
-    return str(local_path)
+    return str(path)
 
 
 def _create_vector_db(gazetteer: pd.DataFrame, nel_model: SentenceTransformer, vector_db_path: Path, device: str, chunk_size: int=10000): # Smaller chunk size
@@ -44,7 +36,7 @@ def _create_vector_db(gazetteer: pd.DataFrame, nel_model: SentenceTransformer, v
                 chunk,
                 convert_to_numpy=True,
                 normalize_embeddings=True,
-                batch_size=512,
+                batch_size=1024,
                 device=device
             )
         if "cuda" in str(device):

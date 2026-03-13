@@ -2,11 +2,11 @@ import os
 os.environ["CUDA_VISIBLE_DEVICES"] = ""
 import sys
 import json
-from app.src.pipelines import SotaPipeline, LookupPipeline
+from app.src.pipelines import BiencoderPipeline, LookupPipeline
 from app.src.formatter import Dt4h_nlp_cdm
 
 method2pipeline = {
-    "sota": lambda **kwargs: SotaPipeline(agg_strat="first", **kwargs),
+    "sota": lambda **kwargs: BiencoderPipeline(agg_strat="first", **kwargs),
     "lookup": LookupPipeline,
 }
 

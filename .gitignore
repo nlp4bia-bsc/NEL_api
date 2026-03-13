@@ -13,3 +13,4 @@ app/local_models/*
 app/local_gazetteers/*
 app/local_vector_dbs/*
 app/models/default_reg.yaml
+resources/*
