@@ -30,4 +30,4 @@ RUN apt-get update && \
 ENV FLASK_APP=app.py
 ENV FLASK_ENV=development
 
-CMD ["uv", "run", "flask", "run", "--host=0.0.0.0", "--port=5000"]
+CMD ["uv run python initializer.py && uv run flask run --host=0.0.0.0 --port=5000"]

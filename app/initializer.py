@@ -1,8 +1,9 @@
+import csv
 import yaml
+import torch
 import argparse
 import pandas as pd
 from pathlib import Path
-import torch
 from sentence_transformers import SentenceTransformer
 
 
@@ -27,31 +28,32 @@ def import_registry(path) -> dict:
         return {}
     
 
-def check_gazzetteers(gazzetters: dict, entities: list[str]) -> str:
+def check_gazetteers(gazetters: dict, entities: list[str]) -> str:
     '''
     Checks that the entities are present in the registry, and that the associated paths are correct.
     '''
-    
-    # errors = []
-    
+        
     for entity in entities:
         
         # check if entity is present
-        if entity not in gazzetters:
+        if entity not in gazetters:
             raise ValueError(f"Entity {entity!r} was not found in registry.")
-            # errors.append(f"Entity {entity!r} was not found in registry.")
-
         
         # check path of that entity
-        path = Path(gazzetters[entity])
+        path = Path(gazetters[entity])
         if not path.is_file():
             raise FileNotFoundError(f"File for {entity!r} not found at {path!r}")
-            # errors.append(f"File for {entity!r} not found at {path!r}")
-    
-    # # present any errors raised
-    # if errors:
-    #     error_msg = "\n- ".join(["Registry check failed:"] + errors)
-    #     raise RuntimeError(error_msg)
+        
+        # check the gazetteers columns
+        required_cols = ['term', 'code']
+        
+        with open(path, newline = '') as f:
+            reader = csv.reader(f)
+            headers = next(reader)  # obtain header
+            
+        for col in required_cols:
+            if col not in headers:
+                raise ValueError(f"Column {col!r} not found in the {entity!r} gazetteer.")
     
     
 def download_ner(ners: dict, entities: list[str]) -> None:

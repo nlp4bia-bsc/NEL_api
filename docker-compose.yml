@@ -9,7 +9,8 @@ services:
     ports:
       - "5000:5000"
     volumes:
-      - .:/app
+      - .:/app    # with this, it makes no sense to use COPY ./app
+      # - ./app/resources   # in prod, we want the volume to just map resources
     restart: unless-stopped
     privileged: true
 
