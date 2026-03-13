@@ -1,4 +1,6 @@
 app/__pycache__/*
+app/resources/ner_models
+app/resources/nel_models
 app/utils/__pycache__/*
 app/pipeline/__pycache__/*
 *.pyc
