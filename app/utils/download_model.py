@@ -1,6 +1,8 @@
 from app.config import MODEL_CACHE_DIR 
 
 from pathlib import Path
+import pandas as pd 
+from sentence_transformers import SentenceTransformer
 from huggingface_hub import snapshot_download
 import torch
 import numpy as np
@@ -25,7 +27,7 @@ def HF_download_model(repo_id: str, path: str) -> str:
     return str(local_path)
 
 
-def _create_vector_db(gazetteer, nel_model, vector_db_path: Path, device: str, chunk_size=10000): # Smaller chunk size
+def _create_vector_db(gazetteer: pd.DataFrame, nel_model: SentenceTransformer, vector_db_path: Path, device: str, chunk_size: int=10000): # Smaller chunk size
     terms = gazetteer["term"].tolist()
     num_terms = len(terms)
     embedding_dim = 768 
@@ -56,7 +58,7 @@ def _create_vector_db(gazetteer, nel_model, vector_db_path: Path, device: str, c
     del fp 
 
 
-def load_as_torch_tensor(vector_db_path: Path, gazz_terms: int, embedding_dim: int = 768, device: str='cuda'):
+def load_as_torch_tensor(vector_db_path: Path, gazz_terms: int, embedding_dim: int = 768, device: str='cuda') -> torch.Tensor:
     nmap = np.memmap(vector_db_path, dtype='float32', mode='r', shape=(gazz_terms, embedding_dim))
     torch_db = torch.from_numpy(nmap)
     return torch_db.to(device=device)
