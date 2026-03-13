@@ -13,7 +13,7 @@ AVAILABLE_ENTITIES = ["disease", "symptom", "pharmac"]
 # In Docker this will be a named volume mounted at /models.
 # Locally it defaults to ./models for development convenience.
 MODEL_CACHE_DIR = os.environ.get("MODEL_CACHE_DIR", "/gpfs/projects/bsc14/erodrig/NEL_api/app/local_models")
-GAZETTEER_CHACHE_DIR = os.environ.get("MODEL_CACHE_DIR", "/gpfs/projects/bsc14/erodrig/NEL_api/app/local_gazetteers")
+GAZETTEER_CHACHE_DIR = os.environ.get("MODEL_CACHE_DIR", "/gpfs/projects/bsc14/erodrig/NEL_api/app/resources/local_gazetteers")
 VECTOR_DB_CHACHE_DIR = os.environ.get("MODEL_CACHE_DIR", "/gpfs/projects/bsc14/erodrig/NEL_api/app/local_vector_dbs")
-
+REGISTRY_PATH = os.environ.get("MODEL_CACHE_DIR", "/gpfs/projects/bsc14/erodrig/NEL_api/app/models/registry.yaml")
 LOOKUP_PATH = "/gpfs/projects/bsc14/erodrig/NEL_api/app/lookup.csv"
