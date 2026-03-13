@@ -20,7 +20,7 @@ class BiencoderModel:
 
         self.vector_db = load_as_torch_tensor(vector_db_pth, gazz_terms=len(self.gazetteer), device=self.device)
         self.biencoder = DenseRetriever(
-            gazetteer=self.gazetteer, 
+            gazeteer_df=self.gazetteer, 
             vector_db=self.vector_db, 
             model_or_path=self.st_model
         )
