@@ -6,7 +6,7 @@ import pandas as pd
 
 from app.models.resolver import ModelResolver
 from app.src.ner import ner_inference
-from app.src.nel import lookup_inference, fuzzymatch_inference, biencoder_inference
+from app.src.nel import lookup_inference, fuzzymatch_inference, bm25okapi_inference, biencoder_inference
 from app.src.negation import add_negation_uncertainty_attributes
 from app.utils.results_postprocessing import join_all_entities
 from app.config import LOOKUP_PATH
@@ -99,7 +99,7 @@ class LookupPipeline(AnnotationPipeline):
     def predict(self, texts: list[str]) -> list[list[dict]]:
         
         # obtain results
-        inference_results = lookup_inference(texts, self.gazeteer_pths, self.case_sensitive)
+        inference_results = lookup_inference(texts, self.gazeteer_pths)
         
         # return flattened results: list[list[list[dict]]] -> list[list[dict]]
         return join_all_entities(inference_results)
@@ -107,8 +107,7 @@ class LookupPipeline(AnnotationPipeline):
     
 class FuzzyMatchPipeline(AnnotationPipeline):
     def __init__(self, lang: str, entities: list[str], method = "jaro_winkler", threshold = 0.7, agg_strat = "first", device = None):
-        self.device = device
-
+        
         # method parameters
         self.method = method
         self.threshold = threshold
@@ -134,6 +133,32 @@ class FuzzyMatchPipeline(AnnotationPipeline):
         
         # return flattened results: list[list[list[dict]]] -> list[list[dict]]
         return join_all_entities(fuzzy_result)
+    
+class BM25OkapiPipeline(AnnotationPipeline):
+    def __init__(self, lang: str, entities: list[str], agg_strat = "first", device = None):
+        self.device = device
+
+        resolver = ModelResolver()
+
+        # NER paths: one ner per entity
+        self.ner_pths = [resolver.resolve_ner(lang, e) for e in entities]
+        self.agg_strat = agg_strat
+        
+        # list of gath paths
+        self.gaz_pths = [resolver.resolve_gazetteer(lang, e)[0] for e in entities]    
+        
+        self.device = device     
+        
+    def predict(self, texts: list[str]) -> list[list[dict]]:
+        
+        # run NER per entity
+        ner_results = ner_inference(texts, self.ner_pths, agg_strat = self.agg_strat, device = self.device)
+        
+        # run bm25 inference on extracted entities
+        bm25_result = bm25okapi_inference(ner_results, self.gaz_pths)
+        
+        # return flattened results: list[list[list[dict]]] -> list[list[dict]]
+        return join_all_entities(bm25_result)
 
 
 class BiencoderPipeline(AnnotationPipeline):

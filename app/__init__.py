@@ -1,6 +1,6 @@
 from functools import partial
 from flask import Flask, request, jsonify
-from app.src.pipelines import LookupPipeline, FuzzyMatchPipeline, BiencoderPipeline
+from app.src.pipelines import LookupPipeline, FuzzyMatchPipeline, BM25OkapiPipeline, BiencoderPipeline
 from app.config import OBLIG_PROPERTIES
 
 
@@ -12,6 +12,7 @@ method2pipeline = {
     'jaro-winkler': partial(FuzzyMatchPipeline, method = 'jaro_winkler'),
     'token-sort-ratio': partial(FuzzyMatchPipeline, method = 'token_sort_ratio'),
     'token-set-ratio': partial(FuzzyMatchPipeline, method = 'token_set_ratio'),
+    'bm25': BM25OkapiPipeline,
     'biencoder': BiencoderPipeline,
 }
 

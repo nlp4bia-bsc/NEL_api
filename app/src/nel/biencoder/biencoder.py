@@ -14,12 +14,12 @@ class BiencoderModel:
         self.device = device
 
         self.st_model = SentenceTransformer(str(model_pth)).to(self.device)
-        self.gazeteer = pd.read_csv(gaz_pth)
-        self.gazeteer.drop_duplicates(subset=["term"], inplace=True)
+        self.gazetteer = pd.read_csv(gaz_pth)
+        self.gazetteer.drop_duplicates(subset=["term"], inplace=True)
 
         self._load_vector_db(vector_db_pth)
         self.biencoder = DenseRetriever(
-            gazeteer_df=self.gazeteer, 
+            gazetteer=self.gazetteer, 
             vector_db=self.vector_db, 
             model_or_path=self.st_model
         )
@@ -30,7 +30,7 @@ class BiencoderModel:
             self.vector_db = torch.load(vector_db_path, map_location=self.device)
         else:
             print("Vector database not found. Computing vector database...")
-            terms = self.gazeteer['term'].to_list()
+            terms = self.gazetteer['term'].to_list()
             self.vector_db = self.st_model.encode(
                 terms, 
                 show_progress_bar=True, 

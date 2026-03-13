@@ -1,4 +1,3 @@
-import sys, os
 import unicodedata
 import pandas as pd
 from rapidfuzz import process, distance, fuzz 
@@ -23,19 +22,19 @@ class FuzzyMatchMethod:
             "token-set-ratio": 100,   
         }
 
-        # obtain gazeteer without duplicates
-        self.gazeteer = pd.read_csv(gaz_path, sep = '\t').drop_duplicates(subset = ['term'])  
+        # obtain gazetteer without duplicates
+        self.gazetteer = pd.read_csv(gaz_path, sep = '\t').drop_duplicates(subset = ['term'])  
               
         # store normalized terms
-        self.clean_terms = self.gazeteer['term'].astype(str).apply(self._normalize).to_list()
+        self.clean_terms = self.gazetteer['term'].astype(str).apply(self._normalize).to_list()
         
         # create code lookup dict
         self.term_to_info = {
             clean: (original, code)
             for clean, original, code in zip(
                 self.clean_terms,
-                self.gazeteer['term'],
-                self.gazeteer['code']
+                self.gazetteer['term'],
+                self.gazetteer['code']
             )
         }
 
@@ -60,16 +59,18 @@ class FuzzyMatchMethod:
                 
         # link mention
         if norm_mention in self.clean_terms: # check if exact match already exists
-            matched_term = mention
-            score = 1
+            matched_term = norm_mention
+            score = 1.0
         else: # find highest scoring match
             match, score_unnorm, _ = process.extractOne(norm_mention, self.clean_terms, scorer = scorer)
             score = score_unnorm / score_scale # score [0,1]
             if  score >= self.threshold:
                 matched_term = match
+            else:
+                matched_term = None # no match found
             
         # store results in dict
-        original_term, code = self.term_to_info.get(matched_term, (matched_term, "NO_MAP"))
+        original_term, code = self.term_to_info.get(matched_term, (mention, "NO_MAP"))
         result = {
             "nel_class": f"FUZZYMATCH_{self.method.upper()}",
             "code": code,
@@ -79,13 +80,13 @@ class FuzzyMatchMethod:
         
         return result
             
-def fuzzymatch_inference(ner_results: list[list[list[dict]]], gaz_pths: str, method: str, threshold: float) -> list[list[list[dict]]]:
+def fuzzymatch_inference(ner_results: list[list[list[dict]]], gaz_pths: list[str], method: str, threshold: float) -> list[list[list[dict]]]:
 
     assert len(ner_results) == len(gaz_pths)
 
     nerl_results = ner_results.copy()
     
-    for ent_type_idx, (ent_type_mentions, gaz) in enumerate(ner_results, gaz_pths):
+    for ent_type_idx, (ent_type_mentions, gaz) in enumerate(zip(nerl_results, gaz_pths)):
         mentions = [mention_dict['span'] for mention_doc in ent_type_mentions for mention_dict in mention_doc]
         if len(mentions) == 0:
             continue

@@ -6,19 +6,19 @@ from flashtext import KeywordProcessor
 class LookUpMethod:
     def __init__(self, gaz_pth: str):
         
-        # load gazeteer
-        self.gazeteer = pd.read_csv(gaz_pth, sep='\t').drop_duplicates(subset=["term"])
+        # load gazetteer
+        self.gazetteer = pd.read_csv(gaz_pth, sep='\t').drop_duplicates(subset=["term"])
         
         # normalize ontology
-        clean_terms = self.gazeteer['term'].astype(str).apply(self._normalize).to_list()
+        clean_terms = self.gazetteer['term'].astype(str).apply(self._normalize).to_list()
 
         # create lookup dict
         self.term_to_info = {
             clean: (original, code)
             for clean, original, code in zip(
                 clean_terms, 
-                self.gazeteer['term'], 
-                self.gazeteer['code'])
+                self.gazetteer['term'], 
+                self.gazetteer['code'])
         }
         
         # build and populate processor engine
@@ -26,9 +26,6 @@ class LookUpMethod:
         self.keyword_processor.add_keywords_from_list(clean_terms)
                     
     def _normalize(self, text: str) -> str:
-        if not self.case_sensitive:
-            text = text.lower()
-            
         text = unicodedata.normalize('NFD', text)
         return "".join(c for c in text if unicodedata.category(c) != 'Mn')
         
@@ -60,7 +57,7 @@ def lookup_inference(texts: list[str], gaz_pths: list[str]) -> list[list[list[di
     
     results = []
     
-    # extract words for each gazeteer
+    # extract words for each gazetteer
     for gaz in gaz_pths:
     
         lookup_engine = LookUpMethod(gaz)
