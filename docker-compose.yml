@@ -9,7 +9,7 @@ services:
     ports:
       - "5000:5000"
     volumes:
-      - ./app:/app   # map local /app to container working dir (/app) 
+      - ./app:NERL_API/app   # map local /app to container container /app 
     restart: unless-stopped
     privileged: true
 

@@ -1,6 +1,5 @@
 app/__pycache__/*
-app/resources/ner_models
-app/resources/nel_models
+app/resources/models
 app/utils/__pycache__/*
 app/pipeline/__pycache__/*
 *.pyc
@@ -10,6 +9,11 @@ app/pipeline/__pycache__/*
 .gitignore
 .vscode
 *.ipynb
+__pycache__
+
+Dockerfile
+docker-compose.yml
+.dockerignore
 
 README.md
 LICENSE

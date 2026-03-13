@@ -1,14 +1,14 @@
 FROM python:3.10-slim
 
-WORKDIR /app
+WORKDIR /NERL_API
 # Install uv
 RUN pip install uv
 # Copy dependency metadata first (better layer caching)
 COPY pyproject.toml uv.lock ./
 # Install deps using uv
-RUN uv sync --frozen --no-dev
+RUN uv sync
 
-COPY app/ .
+COPY . .
 
 # Instalar dependencias necesarias y Docker CLI
 RUN apt-get update && \
@@ -30,4 +30,4 @@ RUN apt-get update && \
 ENV FLASK_APP=app.py
 ENV FLASK_ENV=development
 
-CMD uv run python initializer.py && uv run flask run --host=0.0.0.0 --port=5000
+CMD uv run python app/initializer.py && uv run flask run --host=0.0.0.0 --port=5000

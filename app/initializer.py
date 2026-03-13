@@ -10,7 +10,7 @@ import gc
 from tqdm import tqdm
 
 
-from app.config import REGISTRY_PATH, VECTOR_DB_CHACHE_DIR, GAZETTEER_CHACHE_DIR 
+from app.config import REGISTRY_PATH, VECTOR_DB_CHACHE_DIR 
 from app.utils.download_model import HF_download_model, _create_vector_db
 from app.utils.model_utils import DenseRetriever
 
@@ -31,7 +31,7 @@ def import_registry(path) -> dict:
         return {}
     
 
-def check_gazzetteers(gazzetters: dict, entities: list[str]):
+def check_gazzetteers(gazetters: dict, entities: list[str]):
     '''
     Checks that the entities are present in the registry, and that the associated paths are correct.
     '''
@@ -50,7 +50,7 @@ def check_gazzetteers(gazzetters: dict, entities: list[str]):
         required_cols = ['term', 'code']
         
         with open(path, newline = '') as f:
-            reader = csv.reader(f)
+            reader = csv.reader(f, delimiter = '\t')
             headers = next(reader)  # obtain header
             
         for col in required_cols:
@@ -80,6 +80,7 @@ def download_ner(ners: dict, entities: list[str]) -> None:
         if not local_path: 
             
             #download model
+            print(f"Downloading model for {entity}...")
             local_path = HF_download_model(repo_id, path = f"ner_models/{entity}")
             
             # save local directory to registry
@@ -109,6 +110,7 @@ def download_nel(nel_model: dict):
         model_name = repo_id.split('/')[-1] # model name for dir
         
         # downlaod model
+        print(f"Downloading model {model_name}...")
         local_path = HF_download_model(repo_id, path = f"nel_models/{model_name}")
         
         # save local directory to registry
@@ -125,7 +127,7 @@ def download_vector_db(registry: dict[str, dict], lang: str, entities: list[str]
     gaz_registry = registry['gazetteers'][lang]
     vector_db_lang_pth = Path(VECTOR_DB_CHACHE_DIR) / lang
     
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = "cpu"
     nel_model = SentenceTransformer(registry['nel'][lang]['local_path']) # we just created this, if not, the code would explode earlier
     for ent in entities:
         vector_db_pth = vector_db_lang_pth / ent / 'vector_db.pt'
@@ -136,7 +138,8 @@ def download_vector_db(registry: dict[str, dict], lang: str, entities: list[str]
             vector_db_pth.parent.mkdir(parents=True, exist_ok=True)
 
         # else creates vector db and populates path
-        ent_gaz = pd.read_csv(gaz_registry[ent]).drop_duplicates(subset=["term"]) 
+        ent_gaz = pd.read_csv(gaz_registry[ent], sep = '\t')
+        ent_gaz.drop_duplicates(subset=["term"]) 
         _create_vector_db(ent_gaz, nel_model, vector_db_pth, device)
         registry['vectorized_dbs'][lang][ent] = str(vector_db_pth)
         
@@ -156,19 +159,14 @@ def upload_registry(registry_path: Path, registry: dict):
 def main(lang: str, entities: list[str]):
     registry = import_registry(REGISTRY_PATH)
     print("Resgistry imported")
-    # check_gazzetteers(registry['gazetteers'][lang], entities) 
+    check_gazzetteers(registry['gazetteers'][lang], entities) 
     print("Gazetteers schecked")
-    # download_ner(registry['ner'][lang], entities)
+    download_ner(registry['ner'][lang], entities)
+    upload_registry(Path(REGISTRY_PATH), registry)
     print("Ner models downloaded") 
-    # download_nel(registry['nel'][lang])
-    # upload_registry(Path(REGISTRY_PATH), registry)
+    download_nel(registry['nel'][lang])
+    upload_registry(Path(REGISTRY_PATH), registry)
     print("Nel models downloaded")
     download_vector_db(registry, lang, entities)
     print("Vector_db created")
-    # upload_registry(Path(REGISTRY_PATH), registry)
-
-
-if __name__ == '__main__':
-    lang = 'es'
-    entities = ['disease']
-    main(lang, entities)
+    upload_registry(Path(REGISTRY_PATH), registry)
