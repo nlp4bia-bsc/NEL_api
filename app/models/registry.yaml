@@ -1,26 +1,23 @@
 ner:
   es:
-    disease: 
+    disease:
       repo_id: BSC-NLP4BIA/bsc-bio-ehr-es-carmen-distemist
       local_path: null
-    symptoms: 
+    symptoms:
       repo_id: BSC-NLP4BIA/bsc-bio-ehr-es-carmen-symptemist
       local_path: null
     negation:
       repo_id: BSC-NLP4BIA/negation-tagger
       local_path: null
-
 nel:
-  es: 
+  es:
     repo_id: ICB-UMA/ClinLinker-KB-GP
-    local_path: null
-
+    local_path: /gpfs/projects/bsc14/erodrig/NEL_api/app/local_models/nel_models/ClinLinker-KB-GP
 gazetteers:
   es:
-    disease: es/disease/distemist_gazetteer.csv
-    symptoms: es/symptoms/symptemist_gazetteer.csv
-      
+    disease: /gpfs/projects/bsc14/erodrig/NEL_api/app/resources/local_gazetteers/es/disease/distemist_gazetteer.csv
+    symptoms: /gpfs/projects/bsc14/erodrig/NEL_api/app/resources/local_gazetteers/es/symptoms/symptemist_gazetteer.csv
 vectorized_dbs:
-  es: 
-    diseas: null
+  es:
+    disease: null
     symptoms: null

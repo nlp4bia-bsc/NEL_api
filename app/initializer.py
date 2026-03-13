@@ -5,10 +5,13 @@ import argparse
 import pandas as pd
 from pathlib import Path
 from sentence_transformers import SentenceTransformer
+import numpy as np
+import gc
+from tqdm import tqdm
 
 
-from app.config import REGISTRY_PATH, VECTOR_DB_CHACHE_DIR
-from app.utils.download_model import HF_download_model
+from app.config import REGISTRY_PATH, VECTOR_DB_CHACHE_DIR, GAZETTEER_CHACHE_DIR 
+from app.utils.download_model import HF_download_model, _create_vector_db
 from app.utils.model_utils import DenseRetriever
 
 def import_registry(path) -> dict: 
@@ -28,13 +31,12 @@ def import_registry(path) -> dict:
         return {}
     
 
-def check_gazetteers(gazetters: dict, entities: list[str]) -> str:
+def check_gazzetteers(gazzetters: dict, entities: list[str]):
     '''
     Checks that the entities are present in the registry, and that the associated paths are correct.
     '''
         
     for entity in entities:
-        
         # check if entity is present
         if entity not in gazetters:
             raise ValueError(f"Entity {entity!r} was not found in registry.")
@@ -118,37 +120,24 @@ def download_nel(nel_model: dict):
         if not local_path.is_dir(): 
             raise ValueError(f"The local path provided does not exist: {local_path!r}") 
 
-def _load_vector_db(gazetteer: pd.DataFrame, nel_model: SentenceTransformer, vector_db_path: Path, device: str):
-        print("Vector database not found. Computing vector database...")
-        terms = gazetteer['term'].to_list()
-        vector_db = nel_model.encode(
-            terms, 
-            show_progress_bar=True, 
-            convert_to_tensor=True,
-            normalize_embeddings=True,
-            batch_size=256,
-            device=device
-        )
-        torch.save(vector_db, vector_db_path)
-        print(f"Vector database saved at {vector_db_path}")
 
-def create_vector_db(registry: dict[str, dict], lang: str, entities: list[str]):
+def download_vector_db(registry: dict[str, dict], lang: str, entities: list[str]):
     gaz_registry = registry['gazetteers'][lang]
     vector_db_lang_pth = Path(VECTOR_DB_CHACHE_DIR) / lang
     
     device = "cuda" if torch.cuda.is_available() else "cpu"
     nel_model = SentenceTransformer(registry['nel'][lang]['local_path']) # we just created this, if not, the code would explode earlier
     for ent in entities:
-        vector_db_pth = vector_db_lang_pth / ent
-        if vector_db_pth.exists():
-            if not registry['vectorized_dbs'][lang][ent]: # for some fucking wierd reason
-                registry['vectorized_dbs'][lang][ent] = str(vector_db_pth)
-            print(f"Vector database already present at {vector_db_pth}")
+        vector_db_pth = vector_db_lang_pth / ent / 'vector_db.pt'
+        if registry['vectorized_dbs'][lang][ent]: 
+            print(f"Vector database already present at {registry['vectorized_dbs'][lang][ent]}")
             continue
+        else:
+            vector_db_pth.parent.mkdir(parents=True, exist_ok=True)
 
         # else creates vector db and populates path
         ent_gaz = pd.read_csv(gaz_registry[ent]).drop_duplicates(subset=["term"]) 
-        _load_vector_db(ent_gaz, nel_model, vector_db_pth, device)
+        _create_vector_db(ent_gaz, nel_model, vector_db_pth, device)
         registry['vectorized_dbs'][lang][ent] = str(vector_db_pth)
         
         
@@ -159,19 +148,27 @@ def upload_registry(registry_path: Path, registry: dict):
     
     try:
         with open(registry_path, 'w', encoding = 'utf-8') as f:
-            yaml.safe_dump(registry_path, stream = f, default_flow_style = False, sort_keys = False)
+            yaml.safe_dump(registry, stream = f, default_flow_style = False, sort_keys = False)
     except Exception as e:
         print(f"Error updating YAML registry: {e}")
 
 
 def main(lang: str, entities: list[str]):
     registry = import_registry(REGISTRY_PATH)
-    check_gazzetteers(registry['gazetteers'][lang], entities) 
-    download_ner(registry['ner'][lang], entities) 
-    download_nel(registry['nel'][lang])
-    create_vector_db(registry, lang, entities)
-    upload_registry(REGISTRY_PATH, registry)
+    print("Resgistry imported")
+    # check_gazzetteers(registry['gazetteers'][lang], entities) 
+    print("Gazetteers schecked")
+    # download_ner(registry['ner'][lang], entities)
+    print("Ner models downloaded") 
+    # download_nel(registry['nel'][lang])
+    # upload_registry(Path(REGISTRY_PATH), registry)
+    print("Nel models downloaded")
+    download_vector_db(registry, lang, entities)
+    print("Vector_db created")
+    # upload_registry(Path(REGISTRY_PATH), registry)
 
 
 if __name__ == '__main__':
-    main()
+    lang = 'es'
+    entities = ['disease']
+    main(lang, entities)

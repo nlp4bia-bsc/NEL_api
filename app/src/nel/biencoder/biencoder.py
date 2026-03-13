@@ -5,6 +5,7 @@ from pathlib import Path
 from sentence_transformers import SentenceTransformer
 
 from app.utils.model_utils import DenseRetriever
+from app.utils.download_model import load_as_torch_tensor
 
 
 class BiencoderModel:
@@ -17,31 +18,12 @@ class BiencoderModel:
         self.gazetteer = pd.read_csv(gaz_pth)
         self.gazetteer.drop_duplicates(subset=["term"], inplace=True)
 
-        self._load_vector_db(vector_db_pth)
+        self.vector_db = load_as_torch_tensor(vector_db_pth, gazz_terms=len(self.gazetteer), device=self.device)
         self.biencoder = DenseRetriever(
             gazetteer=self.gazetteer, 
             vector_db=self.vector_db, 
             model_or_path=self.st_model
         )
-    
-    def _load_vector_db(self, vector_db_path: Path):
-        if os.path.exists(vector_db_path):
-            print("Loading vector database from file...")
-            self.vector_db = torch.load(vector_db_path, map_location=self.device)
-        else:
-            print("Vector database not found. Computing vector database...")
-            terms = self.gazetteer['term'].to_list()
-            self.vector_db = self.st_model.encode(
-                terms, 
-                show_progress_bar=True, 
-                convert_to_tensor=True,
-                normalize_embeddings=True,
-                batch_size=256,
-                device=self.device
-            )
-            torch.save(self.vector_db, vector_db_path)
-            print(f"Vector database saved at {vector_db_path}")
-
     def run_nel_inference(self, input_mentions: list, k: int=1) -> pd.DataFrame:
         """
         Returns a dataframe where the index is the span and the and the vaues are the code, term, and simmilarity. It can be accessed through df.loc['covid'] --> 1119302008 / 'COVID-19 agudo' / 0.7942
