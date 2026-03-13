@@ -9,7 +9,6 @@ from app.src.ner import ner_inference
 from app.src.nel import lookup_inference, fuzzymatch_inference, bm25okapi_inference, biencoder_inference
 from app.src.negation import add_negation_uncertainty_attributes
 from app.utils.results_postprocessing import join_all_entities
-from app.config import LOOKUP_PATH
 
 
 class AnnotationPipeline(Protocol):

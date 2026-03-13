@@ -12,11 +12,11 @@ ner:
 nel:
   es:
     repo_id: ICB-UMA/ClinLinker-KB-GP
-    local_path: /gpfs/projects/bsc14/erodrig/NEL_api/app/local_models/nel_models/ClinLinker-KB-GP
+    local_path: null 
 gazetteers:
   es:
-    disease: /gpfs/projects/bsc14/erodrig/NEL_api/app/resources/local_gazetteers/es/disease/distemist_gazetteer.csv
-    symptoms: /gpfs/projects/bsc14/erodrig/NEL_api/app/resources/local_gazetteers/es/symptoms/symptemist_gazetteer.csv
+    disease: /home/bscuser/Development/cogstack/ner-linking-api/app/resources/gazetteers/es/disease/distemist_gazetteer.tsv 
+    symptoms: /home/bscuser/Development/cogstack/ner-linking-api/app/resources/gazetteers/es/symptoms/symptemist_gazetteer.tsv 
 vectorized_dbs:
   es:
     disease: null
