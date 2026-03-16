@@ -1,7 +1,7 @@
 import os
 import sys
 import json
-from initializer import main as download_models
+from app.initializer import main as download_models
 
 def main():
     lang = "es"

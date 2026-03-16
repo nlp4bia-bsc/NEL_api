@@ -12,7 +12,7 @@ it will be created at runtime by the NEL component if absent.
 from pathlib import Path
 import os
 import yaml
-from typing import Optional, Any
+from typing import Optional
 
 from app.config import REGISTRY_PATH
 
@@ -22,12 +22,12 @@ class ModelNotFoundError(Exception):
 
 
 class LocalResolver:
-    def __init__(self, lang: str, entities: list[str]):
+    def __init__(self, lang: str):
         self.cwd = Path(os.getcwd())
+        self.base_pth =  self.cwd / "app" / "resources"
         self.reg_path = self.cwd / Path(REGISTRY_PATH)
         self.registry: dict = self._import_registry()
         self.lang = lang
-        self.entities = entities
     
     def _import_registry(self) -> dict:
         '''
@@ -53,74 +53,85 @@ class LocalResolver:
         except Exception as e:
             print(f"Error updating YAML registry: {e}")
 
-    def resolve_ner(self) -> dict[str, Optional[Path]]:
+    def get_ner_path(self, entity: str) -> tuple[Path, Optional[str]]:
         try:
-            ner_locations = {
-                entity_type: Path(pth) if (pth:=self.registry['ner'][self.lang][entity_type]['local_path']) else None
-                for entity_type in self.entities
-            }
+            pth = self.registry['ner'][self.lang][entity]['local_path']
+        except KeyError:
+            raise ModelNotFoundError(f"No NER model registered for {self.lang!r} / {entity!r}.")
+        if pth is None:
+            try:
+                repo_id = self.registry['ner'][self.lang][entity]['repo_id']
+            except:
+                raise ModelNotFoundError(f"No repo id provided for the NER model responsible for {self.lang!r} / {entity!r}.")
+            pth = (
+                self.base_pth / 'local_models' / 'ner_models'
+                / self.lang / entity / repo_id.split('/')[-1]
+            )
+            print(f"NER model for {self.lang!r} / {entity!r} has not been downloaded yet, downloading it now from hf: {repo_id!r} into {pth!r}.")
+            return Path(pth), repo_id
+        
+        elif not Path(pth).exists(): # verify it actually exists
+             raise FileNotFoundError(
+                    f"Ner Model for {self.lang!r} {entity!r} not found at {pth!r} specified in the registry."
+                )
+        # model already downloaded          
+        return Path(pth), None
+    
+    def get_nel_path(self) -> tuple[Path, Optional[str]]:
+        try:
+            pth = self.registry['nel'][self.lang]['local_path']
+        except KeyError:
+            raise ModelNotFoundError(f"No NEL model registered for {self.lang!r}.")
+        if pth is None:
+            try:
+                repo_id = self.registry['nel'][self.lang]['repo_id']
+            except:
+                raise ModelNotFoundError(f"No repo id provided for the NEL model responsible for {self.lang!r}.")
+            pth = Path(
+                self.base_pth / 'local_models' / 'nel_models'
+                / self.lang / repo_id.split('/')[-1]
+            )
+            print(f"NEL model for {self.lang!r} has not been downloaded yet, downloading it now from hf: {repo_id!r} into {pth!r}.")
+            return Path(pth), repo_id
+        
+        elif not Path(pth).exists(): # verify it actually exists
+             raise FileNotFoundError(
+                    f"Ner Model for {self.lang!r} not found at {pth!r} specified in the registry."
+                )
+        # model already downloaded
+        return Path(pth), None
+    
+    def get_gaz_path(self, entity: str) -> Path:
+        try:
+            pth = Path(self.registry['gazetteers'][self.lang][entity])
 
         except KeyError:
             raise ModelNotFoundError(
-                f"No NER model registered for language {self.lang!r} for one, some or all entities {self.entities!r}. "
-                f"You must add a huggingface id in the registry under that language and entities in app/registry.yaml and run the api again to download the models and save them locally."
+                f"No gazetteer registered for language {self.lang!r} for {entity!r}. "
+                f"You must add an absolute path to an existing csv or tsv file in the registry under that language and entity in app/registry.yaml."
             )
-        return ner_locations
+        
+        if not Path(pth).exists():
+            raise FileNotFoundError(
+                    f"Gazetteer file for {self.lang!r} {entity!r} not found at {pth!r} specified in the registry."
+                )
+        # gazetteer is correctly referenced
+        return pth
     
-    def resolve_nel(self) -> Optional[Path]:
+    def get_vector_db_path(self, entity: str) -> tuple[Path, bool]:
+        downloaded = True
         try:
-            nel_location = Path(pth) if (pth:=self.registry['nel'][self.lang]['local_path']) else None
+            pth = self.registry['vectorized_dbs'][self.lang][entity]
         except KeyError:
-            raise ModelNotFoundError(
-                f"No NEL model registered for language {self.lang!r}. "
-                f"You must add a huggingface id in the registry under that language in app/registry.yaml and run the api again to download the models and save them locally."
+            raise ModelNotFoundError(f"No vectorized db created for {entity!r} under language {self.lang!r} .")
+        if pth is None:
+            pth = Path(
+                self.base_pth / 'vectorized_dbs' / self.lang / f"{entity}.pt"
             )
-        return nel_location
-    
-    def resolve_gazetter(self) -> dict[str, Optional[Path]]:
-        try:
-            gaz_locations = {
-                entity_type: Path(pth) if (pth:=self.registry['gazetteers'][self.lang][entity_type]) else None
-                for entity_type in self.entities
-            }
-
-        except KeyError:
-            raise ModelNotFoundError(
-                f"No gazetteer registered for language {self.lang!r} for one, some or all entities {self.entities!r}. "
-                f"You must add a path to an existing csv or tsv file in the registry under that language and entities in app/registry.yaml."
-            )
-        return gaz_locations
-    
-    def resolve_vector_db(self) -> dict[str, Optional[Path]]:
-        try:
-            vdb_locations = {
-                entity_type: Path(pth) if (pth:=self.registry['vectorized_dbs'][self.lang][entity_type]) else None
-                for entity_type in self.entities
-            }
-
-        except KeyError:
-            raise ModelNotFoundError(
-                f"No vector databse created for language {self.lang!r} for one, some or all entities {self.entities!r}. "
-                f"You must verify the gazetteers and nel models are downloaded and run the api again to generate the vector db."
-            )
-        return vdb_locations
-
-    def resolve_negation(self) -> Optional[Path]:
-        try:
-            neg_location = Path(pth) if (pth:=self.registry['ner'][self.lang]['negation']['local_path']) else None
-        except KeyError:
-            raise ModelNotFoundError(
-                f"No NER model registered for language {self.lang!r}. "
-                f"You must add a huggingface id in the registry under that language in app/registry.yaml and run the api again to download the models and save them locally."
-            )
-        return neg_location
-    
-    def create_paths(self) -> dict[str, Any]:
-        ner_paths = {
-            ent: self.cwd / 'resources' / 'local_models' / 'ner_models' / self.lang / ent / self.registry['nel'][self.lang].get('repo_id').split('/')[-1]
-            for ent in self.entities + ['negation']
-        }
-        neg_path = self.cwd / 'resources' / 'local_models' / 'neg_model' / self.lang / self.registry["ner"][self.lang]['negation'].get('repo_id').split('/')[-1]
-        nel_path = self.cwd / 'resources' / 'local_models' / 'nel_model' / self.lang / self.registry['nel'][self.lang].get('repo_id').split('/')[-1]
-        vdb_paths = {ent: self.cwd / 'resources' / 'local_vector_dbs' / self.lang / f"{ent}.pt" for ent in self.entities}
-        return {'ner': ner_paths, 'neg': neg_path, 'nel': nel_path, 'vdb': vdb_paths}
+            downloaded = False
+            print(f"No vectorized db created for {entity!r} under language {self.lang!r}. Creating one using the default NEL model / gazetteer for that language and entity combination")
+        elif not Path(pth).exists():
+            raise FileNotFoundError(
+                    f"Vector DB for {self.lang!r} {entity!r} not found at {pth!r} specified in the registry."
+                )
+        return Path(pth), downloaded

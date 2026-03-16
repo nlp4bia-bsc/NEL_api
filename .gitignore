@@ -12,5 +12,5 @@ jobs/*
 app/local_models/*
 app/local_gazetteers/*
 app/local_vector_dbs/*
-app/models/default_reg.yaml
+app/default_registry.yaml
 resources/*

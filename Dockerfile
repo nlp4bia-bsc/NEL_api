@@ -8,7 +8,7 @@ COPY pyproject.toml uv.lock ./
 # Install deps using uv
 RUN uv sync
 
-COPY . .
+COPY app/ .
 
 # Instalar dependencias necesarias y Docker CLI
 RUN apt-get update && \

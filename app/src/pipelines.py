@@ -88,9 +88,8 @@ class LookupPipeline(AnnotationPipeline):
     """Direct text → code lookup. No NER step needed."""
 
     def __init__(self, lang: str, entities: list[str]):
-        resolver = LocalResolver(lang, entities)
-        gaz_locations = resolver.resolve_gazetter()
-        self.gaz_pths = [gaz_locations[e] for e in entities]
+        self.resolver = LocalResolver(lang)
+        self.gaz_pths = [self.resolver.get_gaz_path(e) for e in entities]
 
     def predict(self, texts: list[str]) -> list[list[dict]]:
         inference_results = lookup_inference(texts, self.gaz_pths)
@@ -113,12 +112,9 @@ class FuzzyMatchPipeline(AnnotationPipeline):
         self.agg_strat = agg_strat
         self.device = device
 
-        resolver = LocalResolver(lang, entities)
-        ner_locations = resolver.resolve_ner()
-        gaz_locations = resolver.resolve_gazetter()
-
-        self.ner_pths = [ner_locations[e] for e in entities]
-        self.gaz_pths = [gaz_locations[e] for e in entities]
+        self.resolver = LocalResolver(lang)
+        self.gaz_pths = [self.resolver.get_gaz_path(e) for e in entities]
+        self.ner_pths = [self.resolver.get_ner_path(e)[0] for e in entities]
 
     def predict(self, texts: list[str]) -> list[list[dict]]:
         ner_results = ner_inference(texts, self.ner_pths, agg_strat=self.agg_strat, device=self.device)
@@ -138,12 +134,9 @@ class BM25OkapiPipeline(AnnotationPipeline):
         self.agg_strat = agg_strat
         self.device = device
 
-        resolver = LocalResolver(lang, entities)
-        ner_locations = resolver.resolve_ner()
-        gaz_locations = resolver.resolve_gazetter()
-
-        self.ner_pths = [ner_locations[e] for e in entities]
-        self.gaz_pths = [gaz_locations[e] for e in entities]
+        self.resolver = LocalResolver(lang)
+        self.gaz_pths = [self.resolver.get_gaz_path(e) for e in entities]
+        self.ner_pths = [self.resolver.get_ner_path(e)[0] for e in entities]
 
     def predict(self, texts: list[str]) -> list[list[dict]]:
         ner_results = ner_inference(texts, self.ner_pths, agg_strat=self.agg_strat, device=self.device)
@@ -175,41 +168,37 @@ class BiencoderPipeline(AnnotationPipeline):
         self,
         lang: str,
         entities: list[str],
+        negation: bool=True,
         agg_strat: str = "first",
         device=None,
     ):
         self.agg_strat = agg_strat
         self.device = device
+        self.negation = negation
 
-        resolver = LocalResolver(lang, entities)
-        ner_locations = resolver.resolve_ner()
-        gaz_locations = resolver.resolve_gazetter()
-        vdb_locations = resolver.resolve_vector_db()
-
-        # One NER model path per entity type
-        self.ner_paths = [ner_locations[e] for e in entities]
-
-        # Single NEL (BiEncoder) model shared across all entity types
-        self.nel_path = resolver.resolve_nel()
-
-        # Per-entity (gaz_path, vector_db_path) pairs for the NEL step
-        self.gaz_and_vdb = [(gaz_locations[e], vdb_locations[e]) for e in entities]
-
-        # Single negation model, resolved independently of the entity NER models
-        self.neg_path = resolver.resolve_negation()
+        self.resolver = LocalResolver(lang)
+        self.ner_paths = [self.resolver.get_ner_path(e)[0] for e in (entities + ["negation"] if self.negation else entities)]
+        self.nel_path = self.resolver.get_nel_path()[0]
+        self.gaz_paths = [self.resolver.get_gaz_path(e) for e in entities]
+        self.vdb_paths = [self.resolver.get_vector_db_path(e)[0] for e in entities]
 
     def predict(self, texts: list[str]) -> list[list[dict]]:
-        # Entity NER — one model per entity type
         ner_results = ner_inference(
             texts, self.ner_paths, agg_strat=self.agg_strat, device=self.device
         )
-        # Negation — separate pass with its own model
-        neg_results = ner_inference(
-            texts, [self.neg_path], agg_strat=self.agg_strat, device=self.device
-        )
-        # NEL normalisation — single BiEncoder, per-entity gazetteers + vector DBs
+        
+        # If no negation, run the standard pipeline and exit
+        if not self.negation:
+            norm_results = biencoder_inference(
+                ner_results, self.nel_path, self.gaz_paths, self.vdb_paths, device=self.device
+            )
+            return join_all_entities(norm_results)
+
+        # If negation exists, handle the specialized pipeline
+        neg_results = ner_results.pop()
         norm_results = biencoder_inference(
-            ner_results, self.nel_path, self.gaz_and_vdb, device=self.device
+            ner_results, self.nel_path, self.gaz_paths, self.vdb_paths, device=self.device
         )
         norm_results = join_all_entities(norm_results)
-        return add_negation_uncertainty_attributes(norm_results, neg_results[0])
+        
+        return add_negation_uncertainty_attributes(norm_results, neg_results)

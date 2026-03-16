@@ -2,7 +2,7 @@ ner:
   es:
     disease:
       repo_id: BSC-NLP4BIA/bsc-bio-ehr-es-carmen-distemist
-      local_path: /home/bscuser/Development/cogstack/ner-linking-api/app/resources/models/ner_models/disease
+      local_path: null
     symptoms:
       repo_id: BSC-NLP4BIA/bsc-bio-ehr-es-carmen-symptemist
       local_path: null
@@ -12,12 +12,12 @@ ner:
 nel:
   es:
     repo_id: ICB-UMA/ClinLinker-KB-GP
-    local_path: /home/bscuser/Development/cogstack/ner-linking-api/app/resources/models/nel_models/ClinLinker-KB-GP
+    local_path: null
 gazetteers:
   es:
-    disease: /home/bscuser/Development/cogstack/ner-linking-api/app/resources/gazetteers/es/disease/distemist_gazetteer.tsv
-    symptoms: /home/bscuser/Development/cogstack/ner-linking-api/app/resources/gazetteers/es/symptoms/symptemist_gazetteer.tsv
+    disease: <path_to_your_disease_gazetteer>
+    symptoms: <path_to_your_symptoms_gazetteer>
 vectorized_dbs:
   es:
-    disease: /home/bscuser/Development/cogstack/ner-linking-api/app/resources/vectorized_dbs/es/disease/vectorized_distemist_gazetteer.pt
-    symptoms: /home/bscuser/Development/cogstack/ner-linking-api/app/resources/vectorized_dbs/es/symptoms/vectorized_symptemist_gazetteer.pt
+    disease: null
+    symptoms: null

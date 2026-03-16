@@ -46,7 +46,7 @@ class BiencoderModel:
         )
         return candidates_df.set_index('mention')
 
-def biencoder_inference(ner_results: list[list[list[dict]]], nel_model_pth: Path, gaz_path_list: list[tuple[Path, Path]], device: str | None = None) -> list[list[list[dict]]]:
+def biencoder_inference(ner_results: list[list[list[dict]]], nel_model_pth: Path, gaz_path_list: list[Path], vector_db_path_list: list[Path], device: str | None = None) -> list[list[list[dict]]]:
     """
     ner_results = [//result level
         [// entity type level
@@ -61,17 +61,16 @@ def biencoder_inference(ner_results: list[list[list[dict]]], nel_model_pth: Path
 
     nel_model_pth: path to bienncoder model (one per language)
 
-    gaz_path_list = [
-        "(<gazetteer_path>, <vector_db_path>)"
-    for each entity we are using] 
+    gaz_path_list, vector_db_path_list are pretty self explanatory.
 
     returns the same ner_results list of list of list of dict with extra keys for the normalized codes and the simmilarity to the original concept
     """
 
     assert len(ner_results) == len(gaz_path_list)
+    assert len(ner_results) == len(vector_db_path_list)
 
     nerl_results = ner_results.copy()
-    for ent_type_idx, (ent_type_mentions, (gaz_pth, vector_db_pth)) in enumerate(zip(ner_results, gaz_path_list)): # will iterate over all entity types (both in ner results and nel models)
+    for ent_type_idx, (ent_type_mentions, gaz_pth, vector_db_pth) in enumerate(zip(ner_results, gaz_path_list, vector_db_path_list)): # will iterate over all entity types (both in ner results and nel models)
         mentions = [mention_dict['span'] for mention_doc in ent_type_mentions for mention_dict in mention_doc]
         if len(mentions) == 0:
             continue # no mentions for that entity type
