@@ -13,7 +13,7 @@ method2pipeline = {
     'token-sort-ratio': partial(FuzzyMatchPipeline, method = 'token_sort_ratio'),
     'token-set-ratio': partial(FuzzyMatchPipeline, method = 'token_set_ratio'),
     'bm25': BM25OkapiPipeline,
-    'biencoder': BiencoderPipeline,
+    'biencoder': partial(BiencoderPipeline, negation=True),
 }
 
 @app.route("/", methods=["GET"])
@@ -52,7 +52,7 @@ def process_bulk():
     if not "content" in data.keys():
         return jsonify({"error": "Input must be a dictionary with 'content' key"}), 400
     
-    method: str = 'sota'
+    method: str = 'biencoder'
     if isinstance(data.get("args", ""), str):
         if (mth:=data.get("args", "")) in method2pipeline.keys():
             method = mth
@@ -75,7 +75,10 @@ def process_bulk():
         texts.append(text)
         footers.append(footer)
 
-    pipeline = method2pipeline[method]()
+    lang = 'es'
+    entities = ["disease", "symptoms"]
+
+    pipeline = method2pipeline[method](lang=lang, entities=entities)
     
     results = pipeline.predict(texts=texts)
 

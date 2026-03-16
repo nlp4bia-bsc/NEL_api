@@ -1,6 +1,5 @@
 import csv
 import pandas as pd
-from pathlib import Path
 from sentence_transformers import SentenceTransformer
 from huggingface_hub import snapshot_download
 import torch
@@ -176,4 +175,18 @@ class ResourceDownloader:
 # ----------------------------------------------------------------------
 
 def main(lang: str, entities: list[str], negation: bool) -> None:
-    ResourceDownloader(lang, entities, negation).run()
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    print(lang, entities, negation)
+    ResourceDownloader(lang, entities, negation, device).run()
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--lang", default='es')
+    parser.add_argument("--entities", default=["symptoms", "disease"], nargs="+")
+    parser.add_argument("--negation", default=True, action="store_true")
+
+    args = parser.parse_args()
+
+    main(args.lang, args.entities, args.negation)
