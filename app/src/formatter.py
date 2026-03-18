@@ -8,7 +8,7 @@ class DataFormatter(Protocol):
     def serialize(self, text: str, annotations: list[dict], footer: dict) -> dict:
         pass
 
-class Dt4h_nlp_cdm(DataFormatter):
+class Dt4h_NLP_CDM(DataFormatter):
     def serialize(self, text: str, annotations: list[dict], footer: dict) -> dict:
         validated_annotations = [Annotation(**self.rename_ann2cdm(a)) for a in annotations]
 

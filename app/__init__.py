@@ -1,8 +1,8 @@
 from functools import partial
 from flask import Flask, request, jsonify
 from app.src.pipelines import LookupPipeline, FuzzyMatchPipeline, BM25OkapiPipeline, BiencoderPipeline
+from app.src.formatter import Dt4h_NLP_CDM
 from app.config import OBLIG_PROPERTIES
-
 
 app = Flask(__name__)
 
@@ -15,6 +15,8 @@ method2pipeline = {
     'bm25': BM25OkapiPipeline,
     'biencoder': partial(BiencoderPipeline, negation=True),
 }
+
+formatter = Dt4h_NLP_CDM()
 
 @app.route("/", methods=["GET"])
 def health():
@@ -80,9 +82,9 @@ def process_bulk():
 
     pipeline = method2pipeline[method](lang=lang, entities=entities)
     
-    results = pipeline.predict(texts=texts)
-
-    return jsonify(results)
+    annotations = pipeline.predict(texts=texts)
+    formatted_results = [formatter.serialize(text, ann, footer) for text, ann, footer in zip(texts, annotations, footers)]
+    return jsonify(formatted_results)
 
 if __name__ == '__main__':
     app.run(debug=True)
