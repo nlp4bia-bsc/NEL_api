@@ -175,8 +175,9 @@ class BiencoderPipeline(AnnotationPipeline):
         self.agg_strat = agg_strat
         self.device = device
         self.negation = negation
+        self.lang = lang
 
-        self.resolver = LocalResolver(lang)
+        self.resolver = LocalResolver(self.lang)
         self.ner_paths = [self.resolver.get_ner_path(e)[0] for e in (entities + ["negation"] if self.negation else entities)]
         self.nel_path = self.resolver.get_nel_path()[0]
         self.gaz_paths = [self.resolver.get_gaz_path(e) for e in entities]
@@ -184,7 +185,7 @@ class BiencoderPipeline(AnnotationPipeline):
 
     def predict(self, texts: list[str]) -> list[list[dict]]:
         ner_results = ner_inference(
-            texts, self.ner_paths, agg_strat=self.agg_strat, device=self.device
+            texts, self.ner_paths, agg_strat=self.agg_strat, device=self.device, lang=self.lang
         )
         
         # If no negation, run the standard pipeline and exit

@@ -13,24 +13,56 @@ import torch
 from transformers import pipeline
 from pathlib import Path
 from spacy.lang.es import Spanish
+from spacy.lang.en import English
+from spacy.lang.it import Italian
+from spacy.lang.ro import Romanian
+from spacy.lang.cs import Czech      # 'cz' is non-standard; Czech ISO 639-1 is 'cs'
+from spacy.lang.sv import Swedish    # 'se' is Northern Sami; Swedish is 'sv'
+from spacy.lang.nl import Dutch
 
 from app.utils.text_preprocessing import pretokenize_sentence
-from app.utils.results_postprocessing import join_all_entities, align_results
+from app.utils.results_postprocessing import align_results
+
+SPACY_LANG_MAP: dict[str, type] = {
+    'es': Spanish,
+    'en': English,
+    'it': Italian,
+    'ro': Romanian,
+    'cz': Czech,   # non-standard code, mapped to Czech
+    'cs': Czech,   # standard code also supported
+    'se': Swedish, # ambiguous code, mapped to Swedish
+    'sv': Swedish, # standard code also supported
+    'nl': Dutch,
+}
+
 
 class NerModel:
-    def __init__(self, model_checkpoint: Path, agg_strat: str = "first", device: str | None = None):
-        self.nlp = Spanish()
+    def __init__(
+        self,
+        model_checkpoint: Path,
+        agg_strat: str = "first",
+        device: str | None = None,
+        lang: str = "es",
+    ):
+        lang_class = SPACY_LANG_MAP.get(lang)
+        if lang_class is None:
+            raise ValueError(
+                f"Unsupported language '{lang}'. "
+                f"Supported codes: {sorted(SPACY_LANG_MAP.keys())}"
+            )
+        self.nlp = lang_class()
         self.nlp.add_pipe("sentencizer")
+
         if device is None:
             device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.device = device
 
         self.pipe = pipeline(
-            task="token-classification", 
-            model=str(model_checkpoint), 
-            aggregation_strategy=agg_strat, 
+            task="token-classification",
+            model=str(model_checkpoint),
+            aggregation_strategy=agg_strat,
             device=self.device,
-            )
+        )
 
     def _process_sentence(self, sentence: str, sentence_start_offset: int) -> list[dict]:
         # Pretokenize sentence for model compatibility
@@ -62,10 +94,16 @@ class NerModel:
 
 
 
-def ner_inference(texts: list[str], ner_models: list[Path], device: str | None = None, agg_strat: str="first") -> list[list[list[dict]]]:
+def ner_inference(
+    texts: list[str],
+    ner_models: list[Path],
+    device: str | None = None,
+    agg_strat: str = "first",
+    lang: str = "es",
+) -> list[list[list[dict]]]:
     results = []
     for model_checkpoint in ner_models:
-        ner_model = NerModel(model_checkpoint, agg_strat=agg_strat, device=device)
-        results_model = ner_model.infer(texts) # Each element in results_model is a list of entities for the corresponding for each text (list[list[dict]])
-        results.append(results_model) 
+        ner_model = NerModel(model_checkpoint, agg_strat=agg_strat, device=device, lang=lang)
+        results_model = ner_model.infer(texts)
+        results.append(results_model)
     return results
