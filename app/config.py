@@ -8,3 +8,4 @@ DT4H_LANGS = [
 AVAILABLE_ENTITIES = ["disease", "symptom"]
 
 REGISTRY_PATH = "app/registry.yaml"
+RESOURCES_PATH = "app/resources"

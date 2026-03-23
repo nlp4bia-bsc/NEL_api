@@ -14,7 +14,7 @@ import os
 import yaml
 from typing import Optional
 
-from app.config import REGISTRY_PATH
+from app.config import REGISTRY_PATH, RESOURCES_PATH 
 
 
 class ModelNotFoundError(Exception):
@@ -23,9 +23,8 @@ class ModelNotFoundError(Exception):
 
 class LocalResolver:
     def __init__(self, lang: str):
-        self.cwd = Path(os.getcwd())
-        self.base_pth =  self.cwd / "app" / "resources"
-        self.reg_path = self.cwd / Path(REGISTRY_PATH)
+        self.base_pth =  Path(RESOURCES_PATH)
+        self.reg_path = Path(REGISTRY_PATH)
         self.registry: dict = self._import_registry()
         self.lang = lang
     

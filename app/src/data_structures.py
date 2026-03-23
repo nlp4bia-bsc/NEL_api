@@ -25,7 +25,7 @@ class RecordMetadata(BaseModel):
     admission_id:                       Optional[str] = None
     admission_date:                     Optional[str] = None
     admission_type:                     Optional[AdmissionType] = None
-    record_id:                          Optional[str] = None
+    record_id:                          Optional[str | int] = None
     record_type:                        Optional[str] = None
     record_format:                      Optional[RecordFormat] = None
     record_creation_date:               Optional[str] = None

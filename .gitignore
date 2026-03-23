@@ -17,3 +17,6 @@ resources/*
 app/default_resources/*
 app/registry.yaml
 default_resources/*
+
+test_annotations.py
+local_files/*

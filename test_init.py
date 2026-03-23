@@ -36,7 +36,7 @@ def main():
 
     method = 'sota'
     lang = "es"
-    entities = ["disease", "symptoms"]
+    entities = ["disease"]
     # entities = ["disease"]
     pipe = method2pipeline[method](lang=lang, entities=entities)
 
@@ -48,9 +48,6 @@ def main():
     for res in results:
         print(json.dumps(res, ensure_ascii=False, indent=4))
     
-
-
-
 
 if __name__ == "__main__":
     sys.exit(main())
