@@ -72,7 +72,7 @@ class NerModel:
         # Convert numpy types to native Python types for JSON serialization
         for entity in results_pre:
             str_score = entity.pop('score')
-            entity['ner_score'] = round(float(str_score), 4)
+            entity['ner_score'] = str(round(float(str_score), 4))
         # Align model results to original text offsets
         results = align_results(results_pre, added_spaces_pos, sentence_start_offset)
         return results
