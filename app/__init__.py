@@ -1,7 +1,7 @@
 from functools import partial
 from flask import Flask, request, jsonify
 from app.src.pipelines import LookupPipeline, FuzzyMatchPipeline, BM25OkapiPipeline, BiencoderPipeline
-from app.src.format import PassthroughFormatter
+from app.src.format import PassthroughFormatter, Dt4hFormatter
 from app.config import OBLIG_PROPERTIES
 
 app = Flask(__name__)
@@ -17,7 +17,8 @@ method2pipeline = {
 }
 
 cdm2formatter = {
-    'none': PassthroughFormatter
+    'none': PassthroughFormatter,
+    'dt4h': Dt4hFormatter
 }
 
 @app.route("/", methods=["GET"])
@@ -81,7 +82,7 @@ def process_bulk():
     # for now, accessed from local vars, but will have to change this to parse the right ones
     lang: str = 'es'
     method: str = 'biencoder'
-    cdm: str = 'none'
+    cdm: str = 'dt4h'
     entities: list[str] = ["disease", "symptoms"]
     negation: bool = True
 

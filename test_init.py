@@ -1,9 +1,8 @@
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = ""
 import sys
 import json
 from app.src.pipelines import BiencoderPipeline, LookupPipeline
-from app.src.format import PassthroughFormatter
+from app.src.format import PassthroughFormatter, Dt4hFormatter
 
 method2pipeline = {
     "sota": lambda **kwargs: BiencoderPipeline(agg_strat="first", negation=True, **kwargs),
@@ -11,7 +10,8 @@ method2pipeline = {
 }
 
 cdm2formatter = {
-    'none': PassthroughFormatter
+    'none': PassthroughFormatter,
+    'dt4hV2': Dt4hFormatter
 }
 
 def main():
@@ -37,10 +37,9 @@ def main():
     method = 'sota'
     lang = "es"
     entities = ["disease"]
-    # entities = ["disease"]
     pipe = method2pipeline[method](lang=lang, entities=entities)
 
-    cdm = 'none'
+    cdm = 'dt4h'
     formatter = cdm2formatter[cdm]()
     
     annotations = pipe.predict(texts)
