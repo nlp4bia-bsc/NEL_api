@@ -62,6 +62,8 @@ class LocalResolver:
                 repo_id = self.registry['ner'][self.lang][entity]['repo_id']
             except:
                 raise ModelNotFoundError(f"No repo id provided for the NER model responsible for {self.lang!r} / {entity!r}.")
+            if not repo_id:
+                raise ModelNotFoundError(f"No repo id provided for the NER model responsible for {self.lang!r} / {entity!r}.")
             pth = (
                 self.base_pth / 'local_models' / 'ner_models'
                 / self.lang / entity / repo_id.split('/')[-1]
@@ -85,6 +87,8 @@ class LocalResolver:
             try:
                 repo_id = self.registry['nel'][self.lang]['repo_id']
             except:
+                raise ModelNotFoundError(f"No repo id provided for the NEL model responsible for {self.lang!r}.")
+            if not repo_id:
                 raise ModelNotFoundError(f"No repo id provided for the NEL model responsible for {self.lang!r}.")
             pth = Path(
                 self.base_pth / 'local_models' / 'nel_models'

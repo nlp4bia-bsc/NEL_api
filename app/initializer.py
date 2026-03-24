@@ -126,7 +126,7 @@ class ResourceDownloader:
         
         nel_local_path, _ = self.resolver.get_nel_path()
         if not nel_local_path:
-            raise ValueError("The NEL model has not been created succesfully.")
+            raise ValueError("Vector db construction requires the NEL model.")
         nel_model = SentenceTransformer(str(nel_local_path))
         
         for entity, vector_db_pth in vector_db_pths.items():
@@ -138,8 +138,9 @@ class ResourceDownloader:
             gc.collect()
             torch.cuda.empty_cache()
             time.sleep(1)
+
             self.registry["vectorized_dbs"][self.lang][entity] = str(vector_db_pth)
-            self.resolver.upload_registry() # a very expensive computation. Save in case future loads are not correctly performed
+            self.resolver.upload_registry() # a very expensive computation. Save for each iteration in case future loads are not correctly performed
 
     # ------------------------------------------------------------------
     # Orchestration
