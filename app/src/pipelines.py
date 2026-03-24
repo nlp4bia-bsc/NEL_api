@@ -158,6 +158,9 @@ class BiencoderPipeline(AnnotationPipeline):
         Each type must have a corresponding NER entry and gazetteer in the
         registry. A single NEL model and a single negation model are shared
         across all entity types for the language.
+    negation: bool
+        Whether or not to apply the negation NER models for that language, 
+        therefore adding a negation attribute to each annotation entry.
     agg_strat : str
         NER aggregation strategy passed to ner_inference. Default "first".
     device : str or None

@@ -1,7 +1,7 @@
 from functools import partial
 from flask import Flask, request, jsonify
 from app.src.pipelines import LookupPipeline, FuzzyMatchPipeline, BM25OkapiPipeline, BiencoderPipeline
-from app.src.formatter import Dt4h_NLP_CDM
+from app.src.format import PassthroughFormatter
 from app.config import OBLIG_PROPERTIES
 
 app = Flask(__name__)
@@ -13,10 +13,12 @@ method2pipeline = {
     'token-sort-ratio': partial(FuzzyMatchPipeline, method = 'token_sort_ratio'),
     'token-set-ratio': partial(FuzzyMatchPipeline, method = 'token_set_ratio'),
     'bm25': BM25OkapiPipeline,
-    'biencoder': partial(BiencoderPipeline, negation=True),
+    'biencoder': partial(BiencoderPipeline, agg_strat = "first"),
 }
 
-formatter = Dt4h_NLP_CDM()
+cdm2formatter = {
+    'none': PassthroughFormatter
+}
 
 @app.route("/", methods=["GET"])
 def health():
@@ -54,7 +56,6 @@ def process_bulk():
     if not "content" in data.keys():
         return jsonify({"error": "Input must be a dictionary with 'content' key"}), 400
     
-    method: str = 'biencoder'
     if isinstance(data.get("args", ""), str):
         if (mth:=data.get("args", "")) in method2pipeline.keys():
             method = mth
@@ -77,10 +78,15 @@ def process_bulk():
         texts.append(text)
         footers.append(footer)
 
-    lang = 'es'
-    entities = ["disease", "symptoms"]
+    # for now, accessed from local vars, but will have to change this to parse the right ones
+    lang: str = 'es'
+    method: str = 'biencoder'
+    cdm: str = 'none'
+    entities: list[str] = ["disease", "symptoms"]
+    negation: bool = True
 
-    pipeline = method2pipeline[method](lang=lang, entities=entities)
+    pipeline = method2pipeline[method](lang=lang, entities=entities, negation=negation)
+    formatter = cdm2formatter[cdm]()
     
     annotations = pipeline.predict(texts=texts)
     formatted_results = [formatter.serialize(text, ann, footer) for text, ann, footer in zip(texts, annotations, footers)]
