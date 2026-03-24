@@ -68,6 +68,7 @@ class Dt4h_NLP_CDM(DataFormatter):
         ner_class_map = {
             "ENFERMEDAD": "disorder/disease",
             "SINTOMA": "symptom",
+            "PROCEDIMIENTO": "procedure"
         }
 
         try:
