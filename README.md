@@ -106,7 +106,7 @@ NEL_PATHS = [
     )
 ]
 
-OBLIG_PROPERTIES = <list of metadata that the output must contain>
+OBLIG_PROPERTIES = <list of metadata that the output must contain> # check
 ```
 
 On the first request, the API will automatically build a **vector database** from the gazetteer entries and saves it for fast retrieval on subsequent runs. It is recommended to use GPU's for this process at least since it is the most computationally expensive.
