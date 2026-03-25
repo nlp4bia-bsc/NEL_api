@@ -162,7 +162,6 @@ def ner_inference_v2(
     ner_models: list[Path],
     device: Optional[str] = None,
     agg_strat: str = "simple",
-    filenames: Optional[list[str]] = None,
     batch_size: int = 16,
     merge_entities: bool = True,
     score_mode: str = "mean",
