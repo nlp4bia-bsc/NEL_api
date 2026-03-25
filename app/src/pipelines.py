@@ -2,7 +2,7 @@ from typing import Protocol
 from abc import abstractmethod
 
 from app.resolver import LocalResolver
-from app.src.ner.encoder import ner_inference
+from app.src.ner import encoder_inference
 from app.src.nel import lookup_inference, fuzzymatch_inference, bm25okapi_inference, biencoder_inference
 from app.src.negation.negation_utils import add_negation_uncertainty_attributes
 from app.utils.results_postprocessing import join_all_entities
@@ -161,10 +161,11 @@ class BiencoderPipeline(AnnotationPipeline):
     negation: bool
         Whether or not to apply the negation NER models for that language, 
         therefore adding a negation attribute to each annotation entry.
-    agg_strat : str
-        NER aggregation strategy passed to ner_inference. Default "first".
-    device : str or None
-        Torch device string, e.g. "cuda:0". None = auto-select.
+    ner_version : int
+        NER pre and postprocessing version to use. Model is called in the same
+        way but inputs are chunked and postprocessed in the same way
+    device : str 
+        Torch device string, e.g. "cuda:0"
     """
 
     def __init__(
@@ -172,13 +173,13 @@ class BiencoderPipeline(AnnotationPipeline):
         lang: str,
         entities: list[str],
         negation: bool=True,
-        agg_strat: str = "first",
-        device=None,
+        ner_version: int=2,
+        device: str='cuda',
     ):
-        self.agg_strat = agg_strat
         self.device = device
         self.negation = negation
         self.lang = lang
+        self.ner_version = ner_version
 
         self.resolver = LocalResolver(self.lang)
         self.ner_paths = [self.resolver.get_ner_path(e)[0] for e in (entities + ["negation"] if self.negation else entities)]
@@ -187,8 +188,9 @@ class BiencoderPipeline(AnnotationPipeline):
         self.vdb_paths = [self.resolver.get_vector_db_path(e)[0] for e in entities]
 
     def predict(self, texts: list[str]) -> list[list[dict]]:
-        ner_results = ner_inference(
-            texts, self.ner_paths, agg_strat=self.agg_strat, device=self.device, lang=self.lang
+        # use v2 encoder
+        ner_results = encoder_inference(
+            texts, self.ner_paths, version=self.ner_version, device=self.device
         )
         
         # If no negation, run the standard pipeline and exit

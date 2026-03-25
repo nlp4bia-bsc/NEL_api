@@ -94,7 +94,7 @@ class NerModel:
 
 
 
-def ner_inference(
+def ner_inference_v1(
     texts: list[str],
     ner_models: list[Path],
     device: str | None = None,

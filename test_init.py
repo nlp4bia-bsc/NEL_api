@@ -1,12 +1,15 @@
-import os
-os.environ["CUDA_VISIBLE_DEVICES"] = ""
+from functools import partial
 import sys
 import json
 from app.src.pipelines import BiencoderPipeline, LookupPipeline
 from app.src.format import PassthroughFormatter
 
+negation = False
+device = 'cuda'
+ner_version = 2
+
 method2pipeline = {
-    "sota": lambda **kwargs: BiencoderPipeline(agg_strat="first", negation=True, **kwargs),
+    'biencoder': partial(BiencoderPipeline, negation=negation, ner_version=ner_version, device=device),
     "lookup": LookupPipeline,
 }
 
@@ -34,15 +37,19 @@ def main():
         "Otro texto con covid y paracetamol para probar.\ncon más  muchos más síntomas interesantes como edemas y negaciones como que 100% no tiene gripe A."
     ]
 
-    method = 'sota'
+    method = 'biencoder'
     lang = "es"
     entities = ["disease"]
+    
+
+    print("Importing Models...")
     # entities = ["disease"]
     pipe = method2pipeline[method](lang=lang, entities=entities)
 
     cdm = 'none'
     formatter = cdm2formatter[cdm]()
     
+    print("Performing inference...")
     annotations = pipe.predict(texts)
     results = [formatter.serialize(text, ann, footer) for text, ann, footer in zip(texts, annotations, footers)]
     for res in results:

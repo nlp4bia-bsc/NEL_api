@@ -13,7 +13,7 @@ method2pipeline = {
     'token-sort-ratio': partial(FuzzyMatchPipeline, method = 'token_sort_ratio'),
     'token-set-ratio': partial(FuzzyMatchPipeline, method = 'token_set_ratio'),
     'bm25': BM25OkapiPipeline,
-    'biencoder': partial(BiencoderPipeline, agg_strat = "first"),
+    'biencoder': partial(BiencoderPipeline, negation=False, ner_version=2, device='cuda'),
 }
 
 cdm2formatter = {
@@ -81,11 +81,10 @@ def process_bulk():
     # for now, accessed from local vars, but will have to change this to parse the right ones
     lang: str = 'es'
     method: str = 'biencoder'
-    cdm: str = 'none'
     entities: list[str] = ["disease", "symptoms"]
-    negation: bool = True
+    pipeline = method2pipeline[method](lang=lang, entities=entities)
 
-    pipeline = method2pipeline[method](lang=lang, entities=entities, negation=negation)
+    cdm: str = 'none'
     formatter = cdm2formatter[cdm]()
     
     annotations = pipeline.predict(texts=texts)
