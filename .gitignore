@@ -5,6 +5,7 @@ __pycache__/
 .venv/
 app/resources/*
 app/test_resources/*
+app/model_manager/toy_resources/*
 *.ipynb
 outfile.txt
 jobs/*

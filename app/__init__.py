@@ -2,7 +2,6 @@ from functools import partial
 from flask import Flask, request, jsonify
 from app.src.pipelines import LookupPipeline, FuzzyMatchPipeline, BM25OkapiPipeline, BiencoderPipeline
 from app.src.format import PassthroughFormatter
-from app.config import OBLIG_PROPERTIES
 
 app = Flask(__name__)
 
@@ -72,8 +71,8 @@ def process_bulk():
         footer = item.get('footer')
         if not text:
             return jsonify({"error": "Each item must contain 'text'"}), 400
-        if any([obligatory_prop not in footer for obligatory_prop in OBLIG_PROPERTIES]):
-            return jsonify({"error": "The input has a missing obligatory property: " + ", ".join(OBLIG_PROPERTIES)}), 400
+        # if any([obligatory_prop not in footer for obligatory_prop in OBLIG_PROPERTIES]):
+        #     return jsonify({"error": "The input has a missing obligatory property: " + ", ".join(OBLIG_PROPERTIES)}), 400
 
         texts.append(text)
         footers.append(footer)

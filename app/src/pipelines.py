@@ -1,7 +1,7 @@
 from typing import Protocol
 from abc import abstractmethod
 
-from app.resolver import LocalResolver
+from app.model_manager.resolver import LocalResolver
 from app.src.ner import encoder_inference
 from app.src.nel import lookup_inference, fuzzymatch_inference, bm25okapi_inference, biencoder_inference
 from app.src.negation.negation_utils import add_negation_uncertainty_attributes

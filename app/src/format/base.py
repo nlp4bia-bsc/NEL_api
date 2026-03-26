@@ -67,6 +67,7 @@ precise shape is left to each concrete implementation.
 """
 
 from abc import ABC, abstractmethod
+from typing import Optional
 
 
 class DataFormatter(ABC):
@@ -85,7 +86,7 @@ class DataFormatter(ABC):
     """
 
     @abstractmethod
-    def serialize(self, text: str, annotations: list[dict], footer: dict) -> dict:
+    def serialize(self, text: str, annotations: list[dict], footer: Optional[dict]) -> dict:
         """Transform raw pipeline output into the target JSON structure.
 
         Parameters
@@ -96,7 +97,7 @@ class DataFormatter(ABC):
             List of raw annotation dicts as produced by the NLP pipeline.
             See module docstring for the full field listing.
         footer:
-            Metadata dict supplied by the API caller alongside the text.
+            Metadata dict supplied by the API caller alongside the text, if any.
 
         Returns
         -------
@@ -131,7 +132,7 @@ class DataFormatter(ABC):
         """
         return annotations
 
-    def _build_metadata(self, text: str, footer: dict) -> dict:
+    def _build_metadata(self, text: str, footer: Optional[dict]) -> dict:
         """Construct the record-metadata payload from the footer dict.
 
         Override this method to select, rename, or enrich footer fields.  The
@@ -143,7 +144,7 @@ class DataFormatter(ABC):
         text:
             The processed clinical text.
         footer:
-            Raw metadata dict from the caller.
+            Raw metadata dict from the caller, if any.
 
         Returns
         -------
@@ -151,4 +152,4 @@ class DataFormatter(ABC):
             A dict that will be included as the metadata section of the
             serialised response.
         """
-        return {"text": text, **footer}
+        return {"text": text, **footer} if footer else {"text": text}

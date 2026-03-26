@@ -1,0 +1,23 @@
+ner:
+  es:
+    disease:
+      repo_id: BSC-NLP4BIA/bsc-bio-ehr-es-carmen-distemist
+      local_path: app/model_manager/toy_resources/local_models/ner_models/es/disease/bsc-bio-ehr-es-carmen-distemist
+    symptoms:
+      repo_id: BSC-NLP4BIA/bsc-bio-ehr-es-carmen-symptemist
+      local_path: app/model_manager/toy_resources/local_models/ner_models/es/symptoms/bsc-bio-ehr-es-carmen-symptemist
+    negation:
+      repo_id: null
+      local_path: null
+nel:
+  es:
+    repo_id: ICB-UMA/ClinLinker-KB-GP
+    local_path: app/model_manager/toy_resources/local_models/nel_models/es/ClinLinker-KB-GP
+gazetteers:
+  es:
+    disease: app/resources/local_gazetteers/es/disease/distemist_gazetteer.tsv
+    symptoms: app/resources/local_gazetteers/es/symptoms/symptemist_gazetteer.tsv
+vectorized_dbs:
+  es:
+    disease: app/model_manager/toy_resources/vectorized_dbs/es/disease.pt
+    symptoms: app/model_manager/toy_resources/vectorized_dbs/es/symptoms.pt

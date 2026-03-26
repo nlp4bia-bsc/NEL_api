@@ -27,16 +27,18 @@ The returned dict has the following top-level structure::
             },
             ...
         ],
-        "processing_success": true
+        "processing_success": true,
+        "processing_date": str
     }
 
 No field renaming, type coercion, or controlled-vocabulary validation is
 applied.
 """
 
-from app.src.format.base import DataFormatter
 from datetime import datetime
+from typing import Optional
 
+from app.src.format.base import DataFormatter
 
 class PassthroughFormatter(DataFormatter):
     """Return pipeline output as-is with minimal envelope structure.
@@ -46,7 +48,7 @@ class PassthroughFormatter(DataFormatter):
     only a thin wrapper is added to make the response self-describing.
     """
 
-    def serialize(self, text: str, annotations: list[dict], footer: dict) -> dict:
+    def serialize(self, text: str, annotations: list[dict], footer: Optional[dict]) -> dict:
         """Wrap raw pipeline output in a minimal response envelope.
 
         Parameters
@@ -57,7 +59,7 @@ class PassthroughFormatter(DataFormatter):
             Raw annotation dicts from the NLP pipeline (not renamed or
             coerced).
         footer:
-            Metadata dict supplied by the caller; passed through unchanged.
+            Metadata dict supplied by the caller, if any; passed through unchanged.
 
         Returns
         -------

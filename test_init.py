@@ -30,12 +30,13 @@ def main():
         "record_type": "discharge summary",
         "record_format": "txt"
     }
-    footers = [random_footer, random_footer]
 
     texts = [
         "Este es un texto de ejemplo.\ncon un paciente procedente de almería aunque nacido en guadalupe, méxico, con mucha tos, mocos, fiebre y la varicela con meningitis.",
-        "Otro texto con covid y paracetamol para probar.\ncon más  muchos más síntomas interesantes como edemas y negaciones como que 100% no tiene gripe A."
+        "Otro texto con covid y paracetamol para probar.\ncon más  muchos más síntomas interesantes como edemas y negaciones como que 100% no tiene gripe A.",
+        "El paciente reporta que no se ducha y por eso vomita sangre, pero realmente es porque tiene cancer de pulmón, hígado y piel"
     ]
+    footers = [random_footer] * len(texts)
 
     method = 'biencoder'
     lang = "es"
