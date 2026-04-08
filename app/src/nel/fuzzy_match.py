@@ -39,7 +39,7 @@ class FuzzyMatchMethod:
         }
 
     def _normalize(self, text: str) -> str:
-        text = unicodedata.normalize('NFD', text)
+        text = unicodedata.normalize('NFD', text.lower())
         return "".join(c for c in text if unicodedata.category(c) != 'Mn')
     
     def run_fuzzymatch(self, mention: str):
