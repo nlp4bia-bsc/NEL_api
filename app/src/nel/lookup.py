@@ -26,7 +26,7 @@ class LookUpMethod:
         self.keyword_processor.add_keywords_from_list(clean_terms)
                     
     def _normalize(self, text: str) -> str:
-        text = unicodedata.normalize('NFD', text)
+        text = unicodedata.normalize('NFD', text.lower())
         return "".join(c for c in text if unicodedata.category(c) != 'Mn')
         
     def run_lookup(self, text: str) -> list[dict]:
