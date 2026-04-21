@@ -173,12 +173,40 @@ class LocalResolver:
             )
         return pth
 
+    def _get_nel_model_name(self, lang: str) -> str:
+        """Derive the NEL model directory name for path construction.
+
+        Prefers the stem of ``local_path`` when already set; falls back to the
+        last segment of ``repo_id`` when the model has not been downloaded yet.
+        """
+        try:
+            cfg = self.registry["nel"][lang]
+        except KeyError:
+            raise ModelNotFoundError(f"No NEL entry registered for {lang!r}.")
+
+        local_path = cfg.get("local_path")
+        if local_path:
+            return Path(local_path).name
+
+        repo_id = cfg.get("repo_id")
+        if repo_id:
+            return repo_id.split("/")[-1]
+
+        raise ModelNotFoundError(
+            f"NEL entry for {lang!r} has neither local_path nor repo_id — "
+            "cannot derive a model name for the vector DB filename."
+        )
+
     def get_vector_db_path(self, lang: str, entity: str) -> tuple[Path, bool]:
         """
         Returns ``(local_path, already_built)``.
 
         - ``already_built=True``  → file exists, nothing to do.
         - ``already_built=False`` → path is the *target* for the build step.
+
+        The generated filename embeds the NEL model name so that swapping the
+        NEL model automatically produces a new path and triggers a rebuild.
+        Format: ``vectorized_dbs/{lang}/{entity}_{nel_model_name}.pt``
 
         Raises ``ModelNotFoundError`` when the registry key is absent and
         ``FileNotFoundError`` when a non-null registered path does not exist.
@@ -191,8 +219,9 @@ class LocalResolver:
             )
 
         if raw is None:
+            nel_model_name = self._get_nel_model_name(lang)
             target = (
-                self.base_pth / "vectorized_dbs" / lang / f"{entity}.pt"
+                self.base_pth / "vectorized_dbs" / lang / f"{entity}_{nel_model_name}.pt"
             )
             logger.info(
                 "Vector DB for %r / %r not yet built — target: %s",

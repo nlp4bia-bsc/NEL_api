@@ -93,7 +93,9 @@ def create_vector_db(gaz_terms: list[str], nel_model: SentenceTransformer, vecto
             torch.cuda.synchronize() # Wait for GPU to finish cleanup
 
 
-def load_as_torch_tensor(vector_db_path: Path, gazz_terms: int, embedding_dim: int = 768, device: str='cuda') -> torch.Tensor:
+def load_as_torch_tensor(vector_db_path: Path, gazz_terms: int, embedding_dim: int = 768, device: str | None = None) -> torch.Tensor:
+    if device is None:
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
     nmap = np.memmap(vector_db_path, dtype='float32', mode='r', shape=(gazz_terms, embedding_dim))
     torch_db = torch.from_numpy(nmap)
     return torch_db.to(device=device)

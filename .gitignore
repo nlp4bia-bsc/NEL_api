@@ -17,6 +17,8 @@ resources/*
 app/default_resources/*
 app/registry.yaml
 default_resources/*
+CLAUDE.md
+CLAUDE.original.md
 
 test_annotations.py
 local_files/*

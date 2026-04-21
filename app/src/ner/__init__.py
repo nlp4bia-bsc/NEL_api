@@ -67,7 +67,7 @@ def encoder_inference(
     # ── routing ─────────────────────────────────────────────────────────────
     version: int = 2,
     # ── shared ──────────────────────────────────────────────────────────────
-    device: str = "cuda",
+    device: str | None = None,
     agg_strat: Optional[str] = None,
     # ── v1-only ─────────────────────────────────────────────────────────────
     lang: str = "es",

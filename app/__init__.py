@@ -1,94 +1,228 @@
+import json
+import os
 from functools import partial
+from pathlib import Path
+
 from flask import Flask, request, jsonify
+import torch
 from app.src.pipelines import LookupPipeline, FuzzyMatchPipeline, BM25OkapiPipeline, BiencoderPipeline
 from app.src.format import PassthroughFormatter
 
 app = Flask(__name__)
 
+
+device = 'cpu' if not torch.cuda.is_available() else 'cuda'
 method2pipeline = {
     'lookup': LookupPipeline,
-    'levenshtein': partial(FuzzyMatchPipeline, method = 'levenshtein'),
-    'jaro-winkler': partial(FuzzyMatchPipeline, method = 'jaro_winkler'),
-    'token-sort-ratio': partial(FuzzyMatchPipeline, method = 'token_sort_ratio'),
-    'token-set-ratio': partial(FuzzyMatchPipeline, method = 'token_set_ratio'),
+    'levenshtein': partial(FuzzyMatchPipeline, method='levenshtein'),
+    'jaro-winkler': partial(FuzzyMatchPipeline, method='jaro_winkler'),
+    'token-sort-ratio': partial(FuzzyMatchPipeline, method='token_sort_ratio'),
+    'token-set-ratio': partial(FuzzyMatchPipeline, method='token_set_ratio'),
     'bm25': BM25OkapiPipeline,
-    'biencoder': partial(BiencoderPipeline, negation=False, ner_version=2, device='cuda'),
+    'biencoder': partial(BiencoderPipeline, ner_version=2, device=device),
 }
 
 cdm2formatter = {
     'none': PassthroughFormatter
 }
 
+
+# ---------------------------------------------------------------------------
+# Shared helpers
+# ---------------------------------------------------------------------------
+
+def _extract_pipeline_params(data: dict):
+    """Validate and extract lang/method/entities/negation from request dict.
+    Returns (params_dict, None) on success or (None, error_str) on failure.
+    """
+    missing = [f for f in ('lang', 'method', 'entities') if f not in data]
+    if missing:
+        return None, f"Missing required field(s): {', '.join(repr(f) for f in missing)}"
+
+    method = data['method']
+    if method not in method2pipeline:
+        return None, f"Unknown method '{method}'. Valid: {list(method2pipeline)}"
+
+    return {
+        'method': method,
+        'lang': data['lang'],
+        'entities': data['entities'],
+        'negation': data.get('negation', False),
+    }, None
+
+
+def _build_pipeline(method, lang, entities, negation):
+    pipeline_cls = method2pipeline[method]
+    if method == 'biencoder':
+        return pipeline_cls(lang=lang, entities=entities, negation=negation)
+    return pipeline_cls(lang=lang, entities=entities)
+
+
+def _normalize_texts(raw_texts: list):
+    """Accept list of str or list of {text, metadata?} objects (mixed allowed).
+    Returns (texts, metadatas, None) or (None, None, error_str).
+    """
+    texts, metadatas = [], []
+    for item in raw_texts:
+        if isinstance(item, str):
+            texts.append(item)
+            metadatas.append(None)
+        elif isinstance(item, dict) and 'text' in item:
+            texts.append(item['text'])
+            metadatas.append(item.get('metadata'))
+        else:
+            return None, None, 'Each item in "texts" must be a string or {"text": ...} object'
+    return texts, metadatas, None
+
+
+def _run_pipeline(pipeline, texts: list, metadatas: list) -> list:
+    formatter = cdm2formatter['none']()
+    annotations = pipeline.predict(texts=texts)
+    return [
+        formatter.serialize(text, ann, meta)
+        for text, ann, meta in zip(texts, annotations, metadatas)
+    ]
+
+
+def _write_to_dir(results: list, output_dir: str, filenames: list) -> list:
+    """Write one JSON file per result into output_dir. Returns list of written paths."""
+    os.makedirs(output_dir, exist_ok=True)
+    written = []
+    for result, fname in zip(results, filenames):
+        out_path = os.path.join(output_dir, fname)
+        with open(out_path, 'w', encoding='utf-8') as fh:
+            json.dump(result, fh, ensure_ascii=False, indent=2)
+        written.append(out_path)
+    return written
+
+
+# ---------------------------------------------------------------------------
+# Endpoints
+# ---------------------------------------------------------------------------
+
 @app.route("/", methods=["GET"])
 def health():
     return "OK", 200
 
-@app.route('/process_bulk', methods=['POST'])
-def process_bulk():
-    """
-    Process multiple texts using NER Dictionary Lookup
-    ---
-    parameters:
-      - name: body
-        in: body
-        required: true
-        schema:
-          id: bulk_input
-          type: array
-          items:
-            type: object
-            required:
-              - text
-            properties:
-              text:
-                type: string
-                description: The text to process
-    responses:
-      200:
-        description: Processed texts with NER annotations
+
+@app.route('/annotate', methods=['POST'])
+def annotate():
+    """Annotate a single text or a list of texts.
+
+    Request body (all fields except text/texts are required):
+        text    : str                          — single text (returns one object)
+        texts   : list[str | {text, metadata?}] — multiple texts (returns array)
+        lang    : str                          — language code (e.g. "es")
+        method  : str                          — pipeline method
+        entities: list[str]                   — entity types to detect
+        negation: bool  (default false)        — negation detection (biencoder only)
+        output_mode: "return" | "directory"   (default "return")
+        output_dir : str                       — required when output_mode="directory"
+
+    output_mode="return"    → JSON response (single object or array)
+    output_mode="directory" → writes text_NNNN.json files; returns summary dict
     """
     data = request.json
-
     if not isinstance(data, dict):
-        return jsonify({"error": "Input must be a dictionary with 'content' key"}), 400
+        return jsonify({"error": "Request body must be a JSON object"}), 400
 
-    if not "content" in data.keys():
-        return jsonify({"error": "Input must be a dictionary with 'content' key"}), 400
+    params, err = _extract_pipeline_params(data)
+    if err:
+        return jsonify({"error": err}), 400
+
+    # Accept 'text' (singular) or 'texts' (list)
+    single = False
+    if 'text' in data:
+        raw_texts = [data['text']]
+        single = True
+    elif 'texts' in data:
+        raw_texts = data['texts']
+    else:
+        return jsonify({"error": "Missing required field: 'text' (single) or 'texts' (list)"}), 400
+
+    if not isinstance(raw_texts, list) or len(raw_texts) == 0:
+        return jsonify({"error": "'texts' must be a non-empty list"}), 400
+
+    texts, metadatas, err = _normalize_texts(raw_texts)
+    if err:
+        return jsonify({"error": err}), 400
+
+    pipeline = _build_pipeline(**params)
+    results = _run_pipeline(pipeline, texts, metadatas)
+
+    output_mode = data.get('output_mode', 'return')
+
+    if output_mode == 'directory':
+        output_dir = data.get('output_dir')
+        if not output_dir:
+            return jsonify({"error": "'output_dir' is required when output_mode is 'directory'"}), 400
+        filenames = [f"text_{i:04d}.json" for i in range(len(results))]
+        written = _write_to_dir(results, output_dir, filenames)
+        return jsonify({"output_dir": output_dir, "files_written": written, "count": len(written)})
     
-    if isinstance(data.get("args", ""), str):
-        if (mth:=data.get("args", "")) in method2pipeline.keys():
-            method = mth
-
-    data = data["content"]
-
-    if not isinstance(data, list):
-        return jsonify({"error": "Input must be a list of objects"}), 400
-
-    texts = []
-    footers = []
-    for item in data:
-        text = item.get('text')
-        footer = item.get('footer')
-        if not text:
-            return jsonify({"error": "Each item must contain 'text'"}), 400
-        # if any([obligatory_prop not in footer for obligatory_prop in OBLIG_PROPERTIES]):
-        #     return jsonify({"error": "The input has a missing obligatory property: " + ", ".join(OBLIG_PROPERTIES)}), 400
-
-        texts.append(text)
-        footers.append(footer)
-
-    # for now, accessed from local vars, but will have to change this to parse the right ones
-    lang: str = 'es'
-    method: str = 'biencoder'
-    entities: list[str] = ["disease", "symptoms"]
-    pipeline = method2pipeline[method](lang=lang, entities=entities)
-
-    cdm: str = 'none'
-    formatter = cdm2formatter[cdm]()
+    if output_mode != 'return':
+        return jsonify({"error": f"Invalid output_mode '{output_mode}'. Valid: 'return', 'directory'"}), 400
     
-    annotations = pipeline.predict(texts=texts)
-    formatted_results = [formatter.serialize(text, ann, footer) for text, ann, footer in zip(texts, annotations, footers)]
-    return jsonify(formatted_results)
+    return jsonify(results[0] if single else results)
+
+
+@app.route('/annotate_dir', methods=['POST'])
+def annotate_dir():
+    """Annotate all .txt files inside a server-side directory.
+
+    Request body:
+        input_dir : str         — absolute path to directory containing .txt files
+        lang      : str
+        method    : str
+        entities  : list[str]
+        negation  : bool  (default false)
+        output_mode: "return" | "directory"  (default "return")
+        output_dir : str        — required when output_mode="directory"
+
+    output_mode="return"    → JSON dict {filename: result_object}
+    output_mode="directory" → writes <stem>.json files; returns summary dict
+    """
+    data = request.json
+    if not isinstance(data, dict):
+        return jsonify({"error": "Request body must be a JSON object"}), 400
+
+    if 'input_dir' not in data:
+        return jsonify({"error": "Missing required field: 'input_dir'"}), 400
+
+    input_dir = data['input_dir']
+    if not os.path.isdir(input_dir):
+        return jsonify({"error": f"'input_dir' does not exist or is not a directory: {input_dir}"}), 400
+
+    params, err = _extract_pipeline_params(data)
+    if err:
+        return jsonify({"error": err}), 400
+
+    txt_files = sorted(Path(input_dir).glob('*.txt'))
+    if not txt_files:
+        return jsonify({"error": f"No .txt files found in: {input_dir}"}), 400
+
+    texts = [p.read_text(encoding='utf-8') for p in txt_files]
+    filenames = [p.name for p in txt_files]
+    metadatas = [{"source_file": str(p)} for p in txt_files]
+
+    pipeline = _build_pipeline(**params)
+    results = _run_pipeline(pipeline, texts, metadatas)
+
+    output_mode = data.get('output_mode', 'return')
+
+    if output_mode == 'directory':
+        output_dir = data.get('output_dir')
+        if not output_dir:
+            return jsonify({"error": "'output_dir' is required when output_mode is 'directory'"}), 400
+        out_filenames = [Path(f).stem + '.json' for f in filenames]
+        written = _write_to_dir(results, output_dir, out_filenames)
+        return jsonify({"output_dir": output_dir, "files_written": written, "count": len(written)})
+    
+    if output_mode != 'return':
+        return jsonify({"error": f"Invalid output_mode '{output_mode}'. Valid: 'return', 'directory'"}), 400
+
+    return jsonify(dict(zip(filenames, results)))
+
 
 if __name__ == '__main__':
     app.run(debug=True)

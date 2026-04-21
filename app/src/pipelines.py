@@ -88,8 +88,8 @@ class LookupPipeline(AnnotationPipeline):
     """Direct text → code lookup. No NER step needed."""
 
     def __init__(self, lang: str, entities: list[str]):
-        self.resolver = LocalResolver(lang)
-        self.gaz_pths = [self.resolver.get_gaz_path(e) for e in entities]
+        self.resolver = LocalResolver()
+        self.gaz_pths = [self.resolver.get_gaz_path(lang, e) for e in entities]
 
     def predict(self, texts: list[str]) -> list[list[dict]]:
         inference_results = lookup_inference(texts, self.gaz_pths)
@@ -112,9 +112,9 @@ class FuzzyMatchPipeline(AnnotationPipeline):
         self.agg_strat = agg_strat
         self.device = device
 
-        self.resolver = LocalResolver(lang)
-        self.gaz_pths = [self.resolver.get_gaz_path(e) for e in entities]
-        self.ner_pths = [self.resolver.get_ner_path(e)[0] for e in entities]
+        self.resolver = LocalResolver()
+        self.gaz_pths = [self.resolver.get_gaz_path(lang, e) for e in entities]
+        self.ner_pths = [self.resolver.get_ner_path(lang, e)[0] for e in entities]
 
     def predict(self, texts: list[str]) -> list[list[dict]]:
         ner_results = ner_inference(texts, self.ner_pths, agg_strat=self.agg_strat, device=self.device)
@@ -134,9 +134,9 @@ class BM25OkapiPipeline(AnnotationPipeline):
         self.agg_strat = agg_strat
         self.device = device
 
-        self.resolver = LocalResolver(lang)
-        self.gaz_pths = [self.resolver.get_gaz_path(e) for e in entities]
-        self.ner_pths = [self.resolver.get_ner_path(e)[0] for e in entities]
+        self.resolver = LocalResolver()
+        self.gaz_pths = [self.resolver.get_gaz_path(lang, e) for e in entities]
+        self.ner_pths = [self.resolver.get_ner_path(lang, e)[0] for e in entities]
 
     def predict(self, texts: list[str]) -> list[list[dict]]:
         ner_results = ner_inference(texts, self.ner_pths, agg_strat=self.agg_strat, device=self.device)
@@ -174,18 +174,18 @@ class BiencoderPipeline(AnnotationPipeline):
         entities: list[str],
         negation: bool=True,
         ner_version: int=2,
-        device: str='cuda',
+        device: str | None = None,
     ):
         self.device = device
         self.negation = negation
         self.lang = lang
         self.ner_version = ner_version
 
-        self.resolver = LocalResolver(self.lang)
-        self.ner_paths = [self.resolver.get_ner_path(e)[0] for e in (entities + ["negation"] if self.negation else entities)]
-        self.nel_path = self.resolver.get_nel_path()[0]
-        self.gaz_paths = [self.resolver.get_gaz_path(e) for e in entities]
-        self.vdb_paths = [self.resolver.get_vector_db_path(e)[0] for e in entities]
+        self.resolver = LocalResolver()
+        self.ner_paths = [self.resolver.get_ner_path(self.lang, e)[0] for e in (entities + ["negation"] if self.negation else entities)]
+        self.nel_path = self.resolver.get_nel_path(self.lang)[0]
+        self.gaz_paths = [self.resolver.get_gaz_path(self.lang, e) for e in entities]
+        self.vdb_paths = [self.resolver.get_vector_db_path(self.lang, e)[0] for e in entities]
 
     def predict(self, texts: list[str]) -> list[list[dict]]:
         # use v2 encoder
