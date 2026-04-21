@@ -140,13 +140,14 @@ Annotate a **single text** or a **list of texts**.
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `text` | `string` | one of `text`/`texts` | Single input text. Response is a single object (not an array). |
-| `texts` | `array` | one of `text`/`texts` | List of texts. Each item may be a plain string or `{"text": "...", "metadata": {...}}`. Mixed lists are accepted. |
+| `texts` | `array[string]` | one of `text`/`texts` | List of input texts. |
+| `metadata` | `object\|null` | no | Metadata for single-text mode. Merged into the `metadata` field of the result. |
+| `metadatas` | `array[object\|null]` | no | Metadata list for multi-text mode. Length must match `texts`. Each entry is merged into the corresponding result. |
 | `lang` | `string` | yes | Language code (e.g. `"es"`). |
 | `method` | `string` | yes | NEL backend. See [Methods](#methods) below. |
-| `entities` | `array[string]` | yes | Entity types to detect (e.g. `["disease", "symptoms"]`). Must match registry entries. |
-| `negation` | `bool` | no | Enable negation/uncertainty detection (default: `false`). Only applies to `biencoder`. Requires a `negation` NER model in the registry. |
-| `output_mode` | `string` | no | `"return"` (default) or `"directory"`. |
-| `output_dir` | `string` | when `output_mode="directory"` | Absolute path to an existing or creatable output directory. Writes one `text_NNNN.json` file per input text. |
+| `entities` | `array[string]` | yes | Non-empty list of entity types to detect (e.g. `["disease", "symptoms"]`). Must match registry entries. |
+| `negation` | `bool` | no | Enable negation/uncertainty detection (default: `false`). Only supported with `method: "biencoder"`. Returns `400` for any other method. Requires a `negation` NER model in the registry. |
+| `output_dir` | `string` | no | If set, results are written as individual JSON files into this directory (created if absent) and a summary object is returned. File names are UUID-based to avoid collisions. |
 
 #### Methods
 
@@ -162,14 +163,14 @@ Annotate a **single text** or a **list of texts**.
 
 #### Response
 
-- `output_mode="return"`, `text` field: single result object.
-- `output_mode="return"`, `texts` field: array of result objects.
-- `output_mode="directory"`: summary object (see below).
+- `text` field, no `output_dir`: single result object.
+- `texts` field, no `output_dir`: array of result objects.
+- `output_dir` set: summary object.
 
 ```json
 {
   "output_dir": "/path/to/output",
-  "files_written": ["/path/to/output/text_0000.json", "..."],
+  "files_written": ["/path/to/output/3f2a...hex.json", "..."],
   "count": 2
 }
 ```
@@ -187,15 +188,14 @@ Annotate all `.txt` files in a **server-side directory**.
 | `input_dir` | `string` | yes | Absolute path to a directory containing `.txt` files. |
 | `lang` | `string` | yes | Language code. |
 | `method` | `string` | yes | NEL backend (see Methods table above). |
-| `entities` | `array[string]` | yes | Entity types to detect. |
-| `negation` | `bool` | no | Enable negation/uncertainty detection (default: `false`). |
-| `output_mode` | `string` | no | `"return"` (default) or `"directory"`. |
-| `output_dir` | `string` | when `output_mode="directory"` | Output directory. Each input `name.txt` produces `name.json`. |
+| `entities` | `array[string]` | yes | Non-empty list of entity types to detect. |
+| `negation` | `bool` | no | Enable negation/uncertainty detection (default: `false`). Only supported with `method: "biencoder"`. |
+| `output_dir` | `string` | no | If set, each input `name.txt` is written as `name.json` into this directory. A summary object is returned instead of inline results. |
 
 #### Response
 
-- `output_mode="return"`: JSON object keyed by filename, e.g. `{"nota_001.txt": {...}, "nota_002.txt": {...}}`.
-- `output_mode="directory"`: summary object identical to the one from `/annotate`.
+- No `output_dir`: JSON object keyed by filename, e.g. `{"nota_001.txt": {...}, "nota_002.txt": {...}}`.
+- `output_dir` set: summary object identical to the one from `/annotate`.
 
 ---
 
@@ -286,14 +286,12 @@ curl -X POST http://localhost:5000/annotate \
   -H 'Content-Type: application/json' \
   -d '{
     "texts": [
-      {
-        "text": "El paciente presenta fiebre alta.",
-        "metadata": {"patient_id": "1", "record_id": "A01"}
-      },
-      {
-        "text": "Dolor abdominal agudo sin náuseas.",
-        "metadata": {"patient_id": "2", "record_id": "A02"}
-      }
+      "El paciente presenta fiebre alta.",
+      "Dolor abdominal agudo sin náuseas."
+    ],
+    "metadatas": [
+      {"patient_id": "1", "record_id": "A01"},
+      {"patient_id": "2", "record_id": "A02"}
     ],
     "lang": "es",
     "method": "biencoder",
@@ -301,7 +299,7 @@ curl -X POST http://localhost:5000/annotate \
   }'
 ```
 
-The `metadata` dict is merged into the `metadata` field of each result object.
+Each `metadatas` entry is merged into the `metadata` field of the corresponding result object.
 
 ### With negation detection
 
@@ -329,15 +327,18 @@ curl -X POST http://localhost:5000/annotate \
     "lang": "es",
     "method": "biencoder",
     "entities": ["disease", "symptoms"],
-    "output_mode": "directory",
     "output_dir": "/path/to/output"
   }'
 ```
 
-Writes `/path/to/output/text_0000.json` and `text_0001.json`. Returns:
+Writes two UUID-named `.json` files into `/path/to/output`. Returns:
 
 ```json
-{"count": 2, "files_written": ["/path/to/output/text_0000.json", "/path/to/output/text_0001.json"], "output_dir": "/path/to/output"}
+{
+  "output_dir": "/path/to/output",
+  "files_written": ["/path/to/output/3f2a1b....json", "/path/to/output/9c8e4d....json"],
+  "count": 2
+}
 ```
 
 ### Annotate a directory of .txt files
@@ -372,7 +373,6 @@ curl -X POST http://localhost:5000/annotate_dir \
     "lang": "es",
     "method": "biencoder",
     "entities": ["disease", "symptoms"],
-    "output_mode": "directory",
     "output_dir": "/path/to/annotated"
   }'
 ```
@@ -381,10 +381,13 @@ curl -X POST http://localhost:5000/annotate_dir \
 
 ```bash
 # Start the server first, then in another terminal:
-bash test_endpoints.sh
+uv run test_api.py
+
+# Validation only (no models needed, fast):
+uv run test_api.py --validation-only
 
 # Against a non-default host:
-bash test_endpoints.sh http://hostname:5000
+uv run test_api.py --url http://hostname:5000
 ```
 
 ---
@@ -424,7 +427,8 @@ POST /annotate
       │
       ▼
  Pipeline instantiation
- (method × lang × entities → LocalResolver → model paths)
+ (method × lang × entities × negation → module-level cache → LocalResolver → model paths)
+ (built once per unique parameter combination; reused on subsequent requests)
       │
       ▼
  NER  — HuggingFace token-classification model
@@ -470,7 +474,7 @@ POST /annotate
 | `app/model_manager/resolver.py` | Single source of truth for resource paths |
 | `app/model_manager/registry.yaml` | Model and gazetteer path registry |
 | `test_init.py` | Pre-flight pipeline validation |
-| `test_endpoints.sh` | HTTP-level endpoint tests |
+| `test_api.py` | HTTP-level endpoint tests |
 
 ---
 

@@ -1,5 +1,6 @@
 import json
 import os
+import uuid
 from functools import partial
 from pathlib import Path
 
@@ -7,6 +8,7 @@ from flask import Flask, request, jsonify
 import torch
 from app.src.pipelines import LookupPipeline, FuzzyMatchPipeline, BM25OkapiPipeline, BiencoderPipeline
 from app.src.format import PassthroughFormatter
+from typing import Sequence
 
 app = Flask(__name__)
 
@@ -26,6 +28,8 @@ cdm2formatter = {
     'none': PassthroughFormatter
 }
 
+_pipeline_cache: dict = {}
+
 
 # ---------------------------------------------------------------------------
 # Shared helpers
@@ -43,39 +47,57 @@ def _extract_pipeline_params(data: dict):
     if method not in method2pipeline:
         return None, f"Unknown method '{method}'. Valid: {list(method2pipeline)}"
 
+    entities = data['entities']
+    if not isinstance(entities, list) or not entities or not all(isinstance(e, str) for e in entities):
+        return None, "'entities' must be a non-empty list of strings."
+
+    negation = data.get('negation', False)
+    if negation and method != 'biencoder':
+        return None, f"'negation' is only supported with method 'biencoder', got '{method}'."
+
     return {
         'method': method,
         'lang': data['lang'],
         'entities': data['entities'],
-        'negation': data.get('negation', False),
+        'negation': negation,
     }, None
 
 
 def _build_pipeline(method, lang, entities, negation):
-    pipeline_cls = method2pipeline[method]
-    if method == 'biencoder':
-        return pipeline_cls(lang=lang, entities=entities, negation=negation)
-    return pipeline_cls(lang=lang, entities=entities)
+    key = (method, lang, frozenset(entities), negation)
+    if key not in _pipeline_cache:
+        pipeline_cls = method2pipeline[method]
+        if method == 'biencoder':
+            _pipeline_cache[key] = pipeline_cls(lang=lang, entities=entities, negation=negation)
+        else:
+            _pipeline_cache[key] = pipeline_cls(lang=lang, entities=entities)
+    return _pipeline_cache[key]
 
 
-def _normalize_texts(raw_texts: list):
-    """Accept list of str or list of {text, metadata?} objects (mixed allowed).
+def _sanitize_inputs(
+        raw_texts: list[str], 
+        raw_metadatas: Sequence[dict | None] | None
+    ) -> \
+    tuple[
+        list[str] | None, 
+        Sequence[dict | None] | None,
+        str | None
+    ]:
+
+    """Accept list of str and optional list of metadata and just checks if all the texts are strings and if fills the metadata list if empty.
     Returns (texts, metadatas, None) or (None, None, error_str).
     """
     texts, metadatas = [], []
-    for item in raw_texts:
-        if isinstance(item, str):
-            texts.append(item)
-            metadatas.append(None)
-        elif isinstance(item, dict) and 'text' in item:
-            texts.append(item['text'])
-            metadatas.append(item.get('metadata'))
+    for item in zip(raw_texts, raw_metadatas):
+        if isinstance(item[0], str):
+            texts.append(item[0])
+            metadatas.append(item[1])
         else:
-            return None, None, 'Each item in "texts" must be a string or {"text": ...} object'
+            return None, None, 'Each item in "texts" must be a string. Verify your input format.'
     return texts, metadatas, None
 
 
-def _run_pipeline(pipeline, texts: list, metadatas: list) -> list:
+def _run_pipeline(pipeline, texts: list, metadatas: Sequence[dict | None]) -> list:
     formatter = cdm2formatter['none']()
     annotations = pipeline.predict(texts=texts)
     return [
@@ -84,12 +106,11 @@ def _run_pipeline(pipeline, texts: list, metadatas: list) -> list:
     ]
 
 
-def _write_to_dir(results: list, output_dir: str, filenames: list) -> list:
+def _write_to_dir(results: list[dict], output_dir: Path, filenames: list[str]) -> list:
     """Write one JSON file per result into output_dir. Returns list of written paths."""
-    os.makedirs(output_dir, exist_ok=True)
     written = []
     for result, fname in zip(results, filenames):
-        out_path = os.path.join(output_dir, fname)
+        out_path = output_dir / fname
         with open(out_path, 'w', encoding='utf-8') as fh:
             json.dump(result, fh, ensure_ascii=False, indent=2)
         written.append(out_path)
@@ -109,18 +130,16 @@ def health():
 def annotate():
     """Annotate a single text or a list of texts.
 
-    Request body (all fields except text/texts are required):
-        text    : str                          — single text (returns one object)
-        texts   : list[str | {text, metadata?}] — multiple texts (returns array)
-        lang    : str                          — language code (e.g. "es")
-        method  : str                          — pipeline method
-        entities: list[str]                   — entity types to detect
-        negation: bool  (default false)        — negation detection (biencoder only)
-        output_mode: "return" | "directory"   (default "return")
-        output_dir : str                       — required when output_mode="directory"
-
-    output_mode="return"    → JSON response (single object or array)
-    output_mode="directory" → writes text_NNNN.json files; returns summary dict
+    Request body:
+        text       : str                           — single text (mutually exclusive with 'texts')
+        texts      : list[str]                     — list of texts (mutually exclusive with 'text')
+        metadata   : dict | None                   — optional metadata for single-text mode
+        metadatas  : list[dict | None] | None      — optional metadata list for multi-text mode; length must match 'texts'
+        lang       : str                           — language code (e.g. "es")
+        method     : str                           — pipeline method
+        entities   : list[str]                     — non-empty list of entity types to detect
+        negation   : bool  (default false)         — negation/uncertainty detection (biencoder only)
+        output_dir : str   (optional)              — if set, results are written as JSON files into this directory
     """
     data = request.json
     if not isinstance(data, dict):
@@ -133,35 +152,36 @@ def annotate():
     # Accept 'text' (singular) or 'texts' (list)
     single = False
     if 'text' in data:
+        if not isinstance(data['text'], str):
+            return jsonify({"error": "'text' must be a string"}), 400
         raw_texts = [data['text']]
+        raw_metadatas = [data.get('metadata', None)]
         single = True
     elif 'texts' in data:
         raw_texts = data['texts']
+        raw_metadatas = data.get('metadatas', [None] * len(raw_texts))
     else:
         return jsonify({"error": "Missing required field: 'text' (single) or 'texts' (list)"}), 400
 
     if not isinstance(raw_texts, list) or len(raw_texts) == 0:
         return jsonify({"error": "'texts' must be a non-empty list"}), 400
+    
+    if len(raw_metadatas) != len(raw_texts):
+        return jsonify({"error": f"Length mismatch: {len(raw_texts)} texts but {len(raw_metadatas)} metadata entries. Each text must have a corresponding metadata object (can be null)."}), 400
 
-    texts, metadatas, err = _normalize_texts(raw_texts)
+    texts, metadatas, err = _sanitize_inputs(raw_texts, raw_metadatas)
     if err:
         return jsonify({"error": err}), 400
 
     pipeline = _build_pipeline(**params)
     results = _run_pipeline(pipeline, texts, metadatas)
 
-    output_mode = data.get('output_mode', 'return')
-
-    if output_mode == 'directory':
-        output_dir = data.get('output_dir')
-        if not output_dir:
-            return jsonify({"error": "'output_dir' is required when output_mode is 'directory'"}), 400
-        filenames = [f"text_{i:04d}.json" for i in range(len(results))]
+    if output_dir := data.get('output_dir', None):
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        filenames = [f"{uuid.uuid4().hex}.json" for _ in results]
         written = _write_to_dir(results, output_dir, filenames)
-        return jsonify({"output_dir": output_dir, "files_written": written, "count": len(written)})
-    
-    if output_mode != 'return':
-        return jsonify({"error": f"Invalid output_mode '{output_mode}'. Valid: 'return', 'directory'"}), 400
+        return jsonify({"output_dir": str(output_dir), "files_written": [str(p) for p in written], "count": len(written)})
     
     return jsonify(results[0] if single else results)
 
@@ -171,16 +191,12 @@ def annotate_dir():
     """Annotate all .txt files inside a server-side directory.
 
     Request body:
-        input_dir : str         — absolute path to directory containing .txt files
-        lang      : str
-        method    : str
-        entities  : list[str]
-        negation  : bool  (default false)
-        output_mode: "return" | "directory"  (default "return")
-        output_dir : str        — required when output_mode="directory"
-
-    output_mode="return"    → JSON dict {filename: result_object}
-    output_mode="directory" → writes <stem>.json files; returns summary dict
+        input_dir  : str         — absolute path to directory containing .txt files
+        lang       : str
+        method     : str
+        entities   : list[str]   — non-empty list of entity types to detect
+        negation   : bool  (default false)  — negation/uncertainty detection (biencoder only)
+        output_dir : str  (optional)        — if set, results are written as <stem>.json files into this directory
     """
     data = request.json
     if not isinstance(data, dict):
@@ -190,6 +206,8 @@ def annotate_dir():
         return jsonify({"error": "Missing required field: 'input_dir'"}), 400
 
     input_dir = data['input_dir']
+    if not isinstance(input_dir, str):
+        return jsonify({"error": "'input_dir' must be a string"}), 400
     if not os.path.isdir(input_dir):
         return jsonify({"error": f"'input_dir' does not exist or is not a directory: {input_dir}"}), 400
 
@@ -208,18 +226,14 @@ def annotate_dir():
     pipeline = _build_pipeline(**params)
     results = _run_pipeline(pipeline, texts, metadatas)
 
-    output_mode = data.get('output_mode', 'return')
-
-    if output_mode == 'directory':
-        output_dir = data.get('output_dir')
-        if not output_dir:
-            return jsonify({"error": "'output_dir' is required when output_mode is 'directory'"}), 400
+    if output_dir := data.get('output_dir'):
+        if not isinstance(output_dir, str):
+            return jsonify({"error": "'output_dir' must be a string"}), 400
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
         out_filenames = [Path(f).stem + '.json' for f in filenames]
         written = _write_to_dir(results, output_dir, out_filenames)
-        return jsonify({"output_dir": output_dir, "files_written": written, "count": len(written)})
-    
-    if output_mode != 'return':
-        return jsonify({"error": f"Invalid output_mode '{output_mode}'. Valid: 'return', 'directory'"}), 400
+        return jsonify({"output_dir": str(output_dir), "files_written": [str(p) for p in written], "count": len(written)})
 
     return jsonify(dict(zip(filenames, results)))
 

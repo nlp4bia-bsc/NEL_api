@@ -57,11 +57,17 @@ def test_annotate_validation():
     r = requests.post(f"{BASE_URL}/annotate", json={**base, "method": "unknown"})
     check("unknown method → 400", r.status_code == 400, r.text)
 
-    r = requests.post(f"{BASE_URL}/annotate", json={**base, "output_mode": "bad"})
-    check("invalid output mode → 400", r.status_code == 400, r.text)
+    r = requests.post(f"{BASE_URL}/annotate", json={**base, "text": 42})
+    check("non-string 'text' → 400", r.status_code == 400, r.text)
 
-    r = requests.post(f"{BASE_URL}/annotate", json={**base, "output_mode": "directory"})
-    check("save without output_dir → 400", r.status_code == 400, r.text)
+    r = requests.post(f"{BASE_URL}/annotate", json={**base, "entities": "disease"})
+    check("entities as bare string → 400", r.status_code == 400, r.text)
+
+    r = requests.post(f"{BASE_URL}/annotate", json={**base, "entities": []})
+    check("empty entities list → 400", r.status_code == 400, r.text)
+
+    r = requests.post(f"{BASE_URL}/annotate", json={**base, "negation": True, "method": "bm25"})
+    check("negation=True with non-biencoder → 400", r.status_code == 400, r.text)
 
 
     print(f"\n{BOLD}POST /annotate (text list) — validation{RESET}")
@@ -76,10 +82,10 @@ def test_annotate_validation():
     check("empty texts list → 400", r.status_code == 400, r.text)
 
     r = requests.post(f"{BASE_URL}/annotate", json={**base, "texts": [123]})
-    check("invalid item type → 400", r.status_code == 400, r.text)
+    check("non-string item in texts → 400", r.status_code == 400, r.text)
 
-    r = requests.post(f"{BASE_URL}/annotate", json={**base, "output_mode": "directory"})
-    check("save without output_dir → 400", r.status_code == 400, r.text)
+    r = requests.post(f"{BASE_URL}/annotate", json={**base, "metadatas": [None, None]})
+    check("metadatas length mismatch → 400", r.status_code == 400, r.text)
 
 
 def test_directory_validation():
@@ -98,8 +104,8 @@ def test_directory_validation():
         r = requests.post(f"{BASE_URL}/annotate_dir", json={**base, "input_dir": empty_dir})
         check("empty dir (no .txt files) → 400", r.status_code == 400, r.text)
 
-    r = requests.post(f"{BASE_URL}/annotate_dir", json={**base, "output_mode": "directory"})
-    check("save without output_dir → 400", r.status_code == 400, r.text)
+    r = requests.post(f"{BASE_URL}/annotate_dir", json={**base, "negation": True, "method": "bm25"})
+    check("negation=True with non-biencoder → 400", r.status_code == 400, r.text)
 
 
 # ---------------------------------------------------------------------------
@@ -114,7 +120,7 @@ PARAMS = {"lang": "es", "method": "biencoder", "entities": ["disease", "symptoms
 
 
 def test_annotate_full():
-    print(f"\n{BOLD}POST /annotate — full pipeline{RESET}")
+    print(f"\n{BOLD}POST /annotate — full pipeline (single text){RESET}")
 
     # Basic return
     r = requests.post(f"{BASE_URL}/annotate", json={"text": TEXTS[0], **PARAMS})
@@ -126,7 +132,7 @@ def test_annotate_full():
         check("processing_success is True", body.get("processing_success") is True)
         check("text echoed in metadata", body["metadata"].get("text") == TEXTS[0])
 
-    # With per-text metadata
+    # With per-text metadata (singular key)
     r = requests.post(f"{BASE_URL}/annotate", json={"text": TEXTS[0], **PARAMS, "metadata": {"patient_id": "42"}})
     check("with metadata → 200", r.status_code == 200, r.text[:200])
     if r.status_code == 200:
@@ -136,16 +142,20 @@ def test_annotate_full():
     r = requests.post(f"{BASE_URL}/annotate", json={"text": TEXTS[0], **PARAMS, "negation": True})
     check("negation=True → 200", r.status_code == 200, r.text[:200])
 
-    # Save mode
+    # Save to output_dir
     with tempfile.TemporaryDirectory() as tmpdir:
-        out = str(Path(tmpdir) / "out.json")
-        r = requests.post(f"{BASE_URL}/annotate", json={"text": TEXTS[0], **PARAMS, "output_mode": "directory", "output_path": out})
-        check("save mode → 200", r.status_code == 200, r.text[:200])
-        check("output file created", Path(out).exists())
+        r = requests.post(f"{BASE_URL}/annotate", json={"text": TEXTS[0], **PARAMS, "output_dir": tmpdir})
+        check("output_dir → 200", r.status_code == 200, r.text[:200])
+        if r.status_code == 200:
+            body = r.json()
+            check("response has 'output_dir'", "output_dir" in body)
+            check("response has 'files_written'", "files_written" in body)
+            check("1 file written", body.get("count") == 1)
+            check("file exists on disk", body.get("files_written") and Path(body["files_written"][0]).exists())
 
-    print(f"\n{BOLD}POST /annotate (list of texts) — full pipeline{RESET}")
+    print(f"\n{BOLD}POST /annotate — full pipeline (list of texts){RESET}")
 
-    # Plain strings
+    # Plain list
     r = requests.post(f"{BASE_URL}/annotate", json={"texts": TEXTS, **PARAMS})
     check("returns 200", r.status_code == 200, r.text[:200])
     if r.status_code == 200:
@@ -153,21 +163,24 @@ def test_annotate_full():
         check("returns list of 2", isinstance(body, list) and len(body) == 2)
         check("each item has 'annotations'", all("annotations" in item for item in body))
 
-    # Mixed plain strings + objects with metadata
-    mixed = [TEXTS[0], {"text": TEXTS[1], "metadata": {"record_id": "7"}}]
-    r = requests.post(f"{BASE_URL}/annotate", json={"texts": mixed, **PARAMS})
-    check("mixed input → 200", r.status_code == 200, r.text[:200])
+    # With metadatas list
+    metadatas = [{"record_id": "1"}, {"record_id": "2"}]
+    r = requests.post(f"{BASE_URL}/annotate", json={"texts": TEXTS, **PARAMS, "metadatas": metadatas})
+    check("with metadatas → 200", r.status_code == 200, r.text[:200])
     if r.status_code == 200:
-        check("metadata echoed for item 2", r.json()[1]["metadata"].get("record_id") == "7")
-        check("no metadata for item 1", r.json()[0]["metadata"].get("record_id") is None)
+        body = r.json()
+        check("metadata echoed for item 1", body[0]["metadata"].get("record_id") == "1")
+        check("metadata echoed for item 2", body[1]["metadata"].get("record_id") == "2")
 
-    # Save mode
+    # Save to output_dir
     with tempfile.TemporaryDirectory() as tmpdir:
-        r = requests.post(f"{BASE_URL}/annotate", json={"texts": TEXTS, **PARAMS, "output_mode": "directory", "output_dir": tmpdir})
-        check("save mode → 200", r.status_code == 200, r.text[:200])
+        r = requests.post(f"{BASE_URL}/annotate", json={"texts": TEXTS, **PARAMS, "output_dir": tmpdir})
+        check("output_dir → 200", r.status_code == 200, r.text[:200])
         if r.status_code == 200:
+            body = r.json()
+            check("2 files written", body.get("count") == 2)
             saved_files = list(Path(tmpdir).glob("*.json"))
-            check("2 files saved", len(saved_files) == 2, str(saved_files))
+            check("2 json files on disk", len(saved_files) == 2, str(saved_files))
 
 
 def test_annotate_directory_full():
@@ -177,26 +190,28 @@ def test_annotate_directory_full():
         for i, text in enumerate(TEXTS):
             (Path(in_dir) / f"note_{i}.txt").write_text(text, encoding='utf-8')
 
-        # Return mode
+        # Return mode — result is a dict keyed by filename
         r = requests.post(f"{BASE_URL}/annotate_dir", json={"input_dir": in_dir, **PARAMS})
         check("returns 200", r.status_code == 200, r.text[:200])
         if r.status_code == 200:
             body = r.json()
-            check("returns list of 2", isinstance(body, list) and len(body) == 2)
-            check("each item has 'file' key", all("file" in item for item in body))
-            check("each item has 'annotations'", all("annotations" in item for item in body))
+            check("returns dict", isinstance(body, dict))
+            check("keyed by both filenames", {"note_0.txt", "note_1.txt"} == set(body.keys()))
+            check("each value has 'annotations'", all("annotations" in v for v in body.values()))
 
-        # Save mode
+        # Save to output_dir — filenames match input stems
         with tempfile.TemporaryDirectory() as out_dir:
             r = requests.post(f"{BASE_URL}/annotate_dir", json={
                 "input_dir": in_dir, **PARAMS,
-                "output_mode": "directory", "output_dir": out_dir,
+                "output_dir": out_dir,
             })
-            check("save mode → 200", r.status_code == 200, r.text[:200])
+            check("output_dir → 200", r.status_code == 200, r.text[:200])
             if r.status_code == 200:
+                body = r.json()
+                check("2 files written", body.get("count") == 2)
                 saved = list(Path(out_dir).glob("*.json"))
-                check("2 json files saved", len(saved) == 2, str(saved))
-                check("filenames match input", {f.stem for f in saved} == {"note_0", "note_1"})
+                check("2 json files on disk", len(saved) == 2, str(saved))
+                check("filenames match input stems", {f.stem for f in saved} == {"note_0", "note_1"})
 
 # ---------------------------------------------------------------------------
 # Entry point
@@ -210,7 +225,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     BASE_URL = args.url
-
 
     test_health()
     if not args.inference_only:
