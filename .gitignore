@@ -16,6 +16,8 @@ app/local_vector_dbs/*
 resources/*
 app/default_resources/*
 app/registry.yaml
+app/model_manager/registry.yaml
+app/model_manager/toy_registry.yaml
 default_resources/*
 CLAUDE.md
 CLAUDE.original.md
