@@ -13,9 +13,8 @@ Author: Fernando Gallego
 """
 
 from pathlib import Path
-from typing import Optional
-import torch
 from transformers import pipeline
+from app.config import device
 
 from app.utils.text_preprocessing import build_inference_chunks
 from app.utils.results_postprocessing import merge_contiguous_entities
@@ -46,12 +45,9 @@ class NerModel:
         self,
         model_checkpoint: Path,
         agg_strat: str = "simple",
-        device: Optional[str] = None,
         merge_entities: bool = True,
         score_mode: str = "mean",
     ):
-        if device is None:
-            device = "cuda" if torch.cuda.is_available() else "cpu"
         self.device = device
         self.merge_entities = merge_entities
         self.score_mode = score_mode
@@ -160,7 +156,6 @@ class NerModel:
 def ner_inference_v2(
     texts: list[str],
     ner_models: list[Path],
-    device: Optional[str] = None,
     agg_strat: str = "simple",
     batch_size: int = 16,
     merge_entities: bool = True,
@@ -189,7 +184,6 @@ def ner_inference_v2(
         model = NerModel(
             model_checkpoint,
             agg_strat=agg_strat,
-            device=device,
             merge_entities=merge_entities,
             score_mode=score_mode,
         )

@@ -12,7 +12,8 @@ import torch
 from huggingface_hub import snapshot_download
 from sentence_transformers import SentenceTransformer
 
-from app.utils.download_model import create_vector_db  
+from app.utils.download_model import create_vector_db
+from app.config import device
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +96,6 @@ class ResourceDownloader:
         gaz_pth: Path,
         nel_local_path: Path,
         vector_db_pth: Path,
-        device: str = "cuda",
     ) -> str:
         """
         Encode gazetteer terms with the NEL sentence-transformer and write
@@ -121,11 +121,12 @@ class ResourceDownloader:
         vector_db_pth.parent.mkdir(parents=True, exist_ok=True)
 
         gaz_terms = self._get_gaz_terms(gaz_pth)
-        create_vector_db(gaz_terms, nel_model, vector_db_pth, device)
+        create_vector_db(gaz_terms, nel_model, vector_db_pth)
 
         del gaz_terms
         gc.collect()
-        torch.cuda.empty_cache()
+        if device == "cuda":
+            torch.cuda.empty_cache()
         time.sleep(1)
 
         logger.info("Vector DB ready: %s", vector_db_pth)

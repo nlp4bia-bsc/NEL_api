@@ -58,17 +58,11 @@ class ModelManager:
     """
     Orchestrates resource validation and download for all registry entries.
 
-    Parameters
-    ----------
-    device:
-        Torch device string forwarded to the vector-DB builder
-        (e.g. ``"cuda"``, ``"cpu"``).
     """
 
-    def __init__(self, device: str = "cuda") -> None:
+    def __init__(self) -> None:
         self.resolver = LocalResolver()
         self.downloader = ResourceDownloader()
-        self.device = device
 
     # ------------------------------------------------------------------
     # Discovery
@@ -243,7 +237,7 @@ class ModelManager:
                     gaz_path = self.resolver.get_gaz_path(item["lang"], item["task"])
                     nel_path, _ = self.resolver.get_nel_path(item["lang"])
                     validated_path = self.downloader.build_vector_db(
-                        gaz_path, nel_path, local_path, self.device
+                        gaz_path, nel_path, local_path
                     )
 
             except Exception:

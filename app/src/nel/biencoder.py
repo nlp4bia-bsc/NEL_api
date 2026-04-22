@@ -3,22 +3,21 @@ import pandas as pd
 import torch
 from pathlib import Path
 from sentence_transformers import SentenceTransformer
+from app.config import device
 
 from app.utils.model_utils import DenseRetriever
 from app.utils.download_model import load_as_torch_tensor
 
 
 class BiencoderModel:
-    def __init__(self, gaz_pth: Path, model_pth: Path, vector_db_pth: Path, device: str | None = None):
-        if device is None:
-            device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    def __init__(self, gaz_pth: Path, model_pth: Path, vector_db_pth: Path):
         self.device = device
 
         self.st_model = SentenceTransformer(str(model_pth)).to(self.device)
         self.gazetteer = pd.read_csv(gaz_pth, sep='\t')
         self.gazetteer.drop_duplicates(subset=["term"], inplace=True)
 
-        self.vector_db = load_as_torch_tensor(vector_db_pth, gazz_terms=len(self.gazetteer), device=self.device)
+        self.vector_db = load_as_torch_tensor(vector_db_pth, gazz_terms=len(self.gazetteer))
         self.biencoder = DenseRetriever(
             gazeteer_df=self.gazetteer, 
             vector_db=self.vector_db, 
@@ -46,7 +45,7 @@ class BiencoderModel:
         )
         return candidates_df.set_index('mention')
 
-def biencoder_inference(ner_results: list[list[list[dict]]], nel_model_pth: Path, gaz_path_list: list[Path], vector_db_path_list: list[Path], device: str | None = None) -> list[list[list[dict]]]:
+def biencoder_inference(ner_results: list[list[list[dict]]], nel_model_pth: Path, gaz_path_list: list[Path], vector_db_path_list: list[Path]) -> list[list[list[dict]]]:
     """
     ner_results = [//result level
         [// entity type level
@@ -77,9 +76,9 @@ def biencoder_inference(ner_results: list[list[list[dict]]], nel_model_pth: Path
 
         nel_model = BiencoderModel(
             gaz_pth=gaz_pth,
-            model_pth=nel_model_pth, # sucks to call this more than once
+            model_pth=nel_model_pth,
             vector_db_pth=vector_db_pth,
-            device=device)
+        )
         
         output = nel_model.run_nel_inference(
             input_mentions=mentions,

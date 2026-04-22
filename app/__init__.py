@@ -5,15 +5,11 @@ from functools import partial
 from pathlib import Path
 
 from flask import Flask, request, jsonify
-import torch
 from app.src.pipelines import LookupPipeline, FuzzyMatchPipeline, BM25OkapiPipeline, BiencoderPipeline
 from app.src.format import PassthroughFormatter
 from typing import Sequence
 
 app = Flask(__name__)
-
-
-device = 'cpu' if not torch.cuda.is_available() else 'cuda'
 method2pipeline = {
     'lookup': LookupPipeline,
     'levenshtein': partial(FuzzyMatchPipeline, method='levenshtein'),
@@ -21,7 +17,7 @@ method2pipeline = {
     'token-sort-ratio': partial(FuzzyMatchPipeline, method='token_sort_ratio'),
     'token-set-ratio': partial(FuzzyMatchPipeline, method='token_set_ratio'),
     'bm25': BM25OkapiPipeline,
-    'biencoder': partial(BiencoderPipeline, ner_version=2, device=device),
+    'biencoder': partial(BiencoderPipeline, ner_version=2),
 }
 
 cdm2formatter = {

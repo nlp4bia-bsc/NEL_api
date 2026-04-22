@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 from typing import List, Dict, Any, Union, Tuple, Optional
 from sentence_transformers import SentenceTransformer
+from app.config import device
 
 
 ## Retriever for Linking Module
@@ -33,7 +34,6 @@ class DenseRetriever:
         normalize: bool = True,
         vector_db: Optional[torch.Tensor] = None,
         vector_db_batch_size: int = 256,
-        device: Union[str, torch.device] = "cuda" if torch.cuda.is_available() else "cpu"
     ) -> None:
         """
         Initialize a DenseRetriever over a candidate-term DataFrame.

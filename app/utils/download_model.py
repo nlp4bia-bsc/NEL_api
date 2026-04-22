@@ -1,11 +1,12 @@
 from pathlib import Path
-import pandas as pd 
+import pandas as pd
 from sentence_transformers import SentenceTransformer
 from huggingface_hub import snapshot_download
 import torch
 import numpy as np
 import gc
 from tqdm import tqdm
+from app.config import device
 
 # def HF_download_model(repo_id: str, path: Path):
 #     '''
@@ -49,7 +50,7 @@ from tqdm import tqdm
 
 # import multiprocessing as mp
 
-def create_vector_db(gaz_terms: list[str], nel_model: SentenceTransformer, vector_db_path: Path, device: str, chunk_size: int=10000):
+def create_vector_db(gaz_terms: list[str], nel_model: SentenceTransformer, vector_db_path: Path, chunk_size: int=10000):
     num_terms = len(gaz_terms)
     embedding_dim = 768 
 
@@ -93,9 +94,7 @@ def create_vector_db(gaz_terms: list[str], nel_model: SentenceTransformer, vecto
             torch.cuda.synchronize() # Wait for GPU to finish cleanup
 
 
-def load_as_torch_tensor(vector_db_path: Path, gazz_terms: int, embedding_dim: int = 768, device: str | None = None) -> torch.Tensor:
-    if device is None:
-        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+def load_as_torch_tensor(vector_db_path: Path, gazz_terms: int, embedding_dim: int = 768) -> torch.Tensor:
     nmap = np.memmap(vector_db_path, dtype='float32', mode='r', shape=(gazz_terms, embedding_dim))
     torch_db = torch.from_numpy(nmap)
     return torch_db.to(device=device)

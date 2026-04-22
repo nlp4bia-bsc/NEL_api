@@ -105,19 +105,17 @@ class FuzzyMatchPipeline(AnnotationPipeline):
         method: str = "jaro_winkler",
         threshold: float = 0.7,
         agg_strat: str = "first",
-        device=None,
     ):
         self.method = method
         self.threshold = threshold
         self.agg_strat = agg_strat
-        self.device = device
 
         self.resolver = LocalResolver()
         self.gaz_pths = [self.resolver.get_gaz_path(lang, e) for e in entities]
         self.ner_pths = [self.resolver.get_ner_path(lang, e)[0] for e in entities]
 
     def predict(self, texts: list[str]) -> list[list[dict]]:
-        ner_results = ner_inference(texts, self.ner_pths, agg_strat=self.agg_strat, device=self.device)
+        ner_results = ner_inference(texts, self.ner_pths, agg_strat=self.agg_strat)
         fuzzy_result = fuzzymatch_inference(ner_results, self.gaz_pths, self.method, self.threshold)
         return join_all_entities(fuzzy_result)
 
@@ -129,17 +127,15 @@ class BM25OkapiPipeline(AnnotationPipeline):
         lang: str,
         entities: list[str],
         agg_strat: str = "first",
-        device=None,
     ):
         self.agg_strat = agg_strat
-        self.device = device
 
         self.resolver = LocalResolver()
         self.gaz_pths = [self.resolver.get_gaz_path(lang, e) for e in entities]
         self.ner_pths = [self.resolver.get_ner_path(lang, e)[0] for e in entities]
 
     def predict(self, texts: list[str]) -> list[list[dict]]:
-        ner_results = ner_inference(texts, self.ner_pths, agg_strat=self.agg_strat, device=self.device)
+        ner_results = ner_inference(texts, self.ner_pths, agg_strat=self.agg_strat)
         bm25_result = bm25okapi_inference(ner_results, self.gaz_pths)
         return join_all_entities(bm25_result)
 
@@ -174,9 +170,7 @@ class BiencoderPipeline(AnnotationPipeline):
         entities: list[str],
         negation: bool=True,
         ner_version: int=2,
-        device: str | None = None,
     ):
-        self.device = device
         self.negation = negation
         self.lang = lang
         self.ner_version = ner_version
@@ -190,20 +184,20 @@ class BiencoderPipeline(AnnotationPipeline):
     def predict(self, texts: list[str]) -> list[list[dict]]:
         # use v2 encoder
         ner_results = encoder_inference(
-            texts, self.ner_paths, version=self.ner_version, device=self.device
+            texts, self.ner_paths, version=self.ner_version
         )
-        
+
         # If no negation, run the standard pipeline and exit
         if not self.negation:
             norm_results = biencoder_inference(
-                ner_results, self.nel_path, self.gaz_paths, self.vdb_paths, device=self.device
+                ner_results, self.nel_path, self.gaz_paths, self.vdb_paths
             )
             return join_all_entities(norm_results)
 
         # If negation exists, handle the specialized pipeline
         neg_results = ner_results.pop()
         norm_results = biencoder_inference(
-            ner_results, self.nel_path, self.gaz_paths, self.vdb_paths, device=self.device
+            ner_results, self.nel_path, self.gaz_paths, self.vdb_paths
         )
         norm_results = join_all_entities(norm_results)
         

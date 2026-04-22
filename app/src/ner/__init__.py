@@ -67,7 +67,6 @@ def encoder_inference(
     # ── routing ─────────────────────────────────────────────────────────────
     version: int = 2,
     # ── shared ──────────────────────────────────────────────────────────────
-    device: str | None = None,
     agg_strat: Optional[str] = None,
     # ── v1-only ─────────────────────────────────────────────────────────────
     lang: str = "es",
@@ -107,7 +106,6 @@ def encoder_inference(
         return ner_inference_v1(
             texts=texts,
             ner_models=ner_models,
-            device=device,
             agg_strat=agg_strat if agg_strat is not None else "first",
             lang=lang,
         )
@@ -115,7 +113,6 @@ def encoder_inference(
         return ner_inference_v2(
             texts=texts,
             ner_models=ner_models,
-            device=device,
             agg_strat=agg_strat if agg_strat is not None else "simple",
             batch_size=batch_size,
             merge_entities=merge_entities,

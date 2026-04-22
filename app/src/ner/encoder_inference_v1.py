@@ -12,6 +12,7 @@ Author: Jan Rodríguez Miret
 import torch
 from transformers import pipeline
 from pathlib import Path
+from app.config import device
 from spacy.lang.es import Spanish
 from spacy.lang.en import English
 from spacy.lang.it import Italian
@@ -41,7 +42,6 @@ class NerModel:
         self,
         model_checkpoint: Path,
         agg_strat: str = "first",
-        device: str | None = None,
         lang: str = "es",
     ):
         lang_class = SPACY_LANG_MAP.get(lang)
@@ -53,8 +53,6 @@ class NerModel:
         self.nlp = lang_class()
         self.nlp.add_pipe("sentencizer")
 
-        if device is None:
-            device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.device = device
 
         self.pipe = pipeline(
@@ -97,13 +95,12 @@ class NerModel:
 def ner_inference_v1(
     texts: list[str],
     ner_models: list[Path],
-    device: str | None = None,
     agg_strat: str = "first",
     lang: str = "es",
 ) -> list[list[list[dict]]]:
     results = []
     for model_checkpoint in ner_models:
-        ner_model = NerModel(model_checkpoint, agg_strat=agg_strat, device=device, lang=lang)
+        ner_model = NerModel(model_checkpoint, agg_strat=agg_strat, lang=lang)
         results_model = ner_model.infer(texts)
         results.append(results_model)
     return results

@@ -3,14 +3,11 @@ import sys
 import json
 from app.src.pipelines import BiencoderPipeline, LookupPipeline
 from app.src.format import PassthroughFormatter
-import torch 
-
 negation = False
-device = 'cpu' if not torch.cuda.is_available() else 'cuda'
 ner_version = 2
 
 method2pipeline = {
-    'biencoder': partial(BiencoderPipeline, negation=negation, ner_version=ner_version, device=device),
+    'biencoder': partial(BiencoderPipeline, negation=negation, ner_version=ner_version),
     "lookup": LookupPipeline,
 }
 
