@@ -406,13 +406,6 @@ docker compose build --no-cache
 docker compose up
 ```
 
-By default the container runs without CUDA. To enable GPU support, edit `docker-compose.yml`:
-
-```yaml
-environment:
-  CUDA_VISIBLE_DEVICES: "0"   # set to your GPU index
-```
-
 The default port is `5000` and can be changed in `docker-compose.yml`.
 
 ---
